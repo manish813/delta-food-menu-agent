@@ -1,0 +1,219 @@
+import httpx
+import asyncio
+from typing import Dict, Any, Optional
+from datetime import date
+import time
+
+from ..models.menu import FlightMenuResponse, CabinMenu, MenuItem
+from ..models.requests import MenuQueryRequest
+
+
+class DeltaMenuClient:
+    """Client for interacting with Delta's flight menu API"""
+    
+    BASE_URL = "https://ifsobs-api.delta.com/CatFltMenuSvcRst/v1"
+    
+    DEFAULT_HEADERS = {
+        'accept': 'application/json, text/plain, */*',
+        'accept-language': 'en-US,en;q=0.8',
+        'channelid': 'DGMNPT',
+        'origin': 'https://menu.delta.com',
+        'priority': 'u=1, i',
+        'referer': 'https://menu.delta.com/',
+        'sec-gpc': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    def __init__(self):
+        self.client = httpx.AsyncClient(
+            headers=self.DEFAULT_HEADERS,
+            timeout=30.0
+        )
+    
+    async def get_menu_by_flight(self, request: MenuQueryRequest) -> FlightMenuResponse:
+        """Get menu for specific flight"""
+        try:
+            start_time = time.time()
+            
+            params = {
+                'departureLocalDate': request.departure_date.isoformat(),
+                'flightDepartureAirportCode': request.departure_airport,
+                'flightNum': request.flight_number,
+                'operatingCarrierCode': request.operating_carrier
+            }
+            
+            if request.cabin_code:
+                params['cabinCode'] = request.cabin_code
+                
+            # Generate transaction ID
+            import uuid
+            transaction_id = str(uuid.uuid4()).upper()
+            
+            headers = self.DEFAULT_HEADERS.copy()
+            headers['transactionid'] = transaction_id
+            
+            response = await self.client.get(
+                f"{self.BASE_URL}/menuByFlight",
+                params=params,
+                headers=headers
+            )
+            
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return self._parse_api_response(data, request, response_time_ms)
+            else:
+                return FlightMenuResponse(
+                    carrier_code=request.operating_carrier,
+                    flight_number=request.flight_number,
+                    departure_date=request.departure_date,
+                    departure_airport=request.departure_airport,
+                    success=False,
+                    error_message=f"API returned status code {response.status_code}",
+                    api_response_time_ms=response_time_ms
+                )
+                
+        except httpx.TimeoutException:
+            return FlightMenuResponse(
+                carrier_code=request.operating_carrier,
+                flight_number=request.flight_number,
+                departure_date=request.departure_date,
+                departure_airport=request.departure_airport,
+                success=False,
+                error_message="Request timed out",
+                api_response_time_ms=30000
+            )
+        except Exception as e:
+            return FlightMenuResponse(
+                carrier_code=request.operating_carrier,
+                flight_number=request.flight_number,
+                departure_date=request.departure_date,
+                departure_airport=request.departure_airport,
+                success=False,
+                error_message=str(e)
+            )
+    
+    def _parse_api_response(self, data: Dict[str, Any], request: MenuQueryRequest, response_time_ms: int) -> FlightMenuResponse:
+        """Parse the Delta API response into our Pydantic models"""
+        try:
+            # Handle different possible response structures
+            if not data or 'error' in data:
+                return FlightMenuResponse(
+                    carrier_code=request.operating_carrier,
+                    flight_number=request.flight_number,
+                    departure_date=request.departure_date,
+                    departure_airport=request.departure_airport,
+                    success=False,
+                    error_message=data.get('error', 'Empty response'),
+                    api_response_time_ms=response_time_ms
+                )
+            
+            # Parse the response based on expected structure
+            cabins = []
+            
+            # Handle both single cabin and multiple cabin responses
+            if 'cabins' in data:
+                for cabin_data in data['cabins']:
+                    cabin = self._parse_cabin_menu(cabin_data)
+                    if cabin:
+                        cabins.append(cabin)
+            elif 'cabin' in data:
+                cabin = self._parse_cabin_menu(data['cabin'])
+                if cabin:
+                    cabins.append(cabin)
+            
+            # Create response object
+            return FlightMenuResponse(
+                carrier_code=request.operating_carrier,
+                flight_number=request.flight_number,
+                departure_date=request.departure_date,
+                departure_airport=request.departure_airport,
+                arrival_airport=data.get('arrivalAirportCode'),
+                cabins=cabins,
+                success=True,
+                api_response_time_ms=response_time_ms
+            )
+            
+        except Exception as e:
+            return FlightMenuResponse(
+                carrier_code=request.operating_carrier,
+                flight_number=request.flight_number,
+                departure_date=request.departure_date,
+                departure_airport=request.departure_airport,
+                success=False,
+                error_message=f"Failed to parse response: {str(e)}",
+                api_response_time_ms=response_time_ms
+            )
+    
+    def _parse_cabin_menu(self, cabin_data: Dict[str, Any]) -> Optional[CabinMenu]:
+        """Parse individual cabin menu data"""
+        try:
+            cabin_code = cabin_data.get('cabinCode', cabin_data.get('code', 'Unknown'))
+            cabin_name = cabin_data.get('cabinName', cabin_data.get('name', cabin_code))
+            
+            menu_items = []
+            
+            # Parse menu items from different possible structures
+            items_data = cabin_data.get('menuItems', cabin_data.get('items', []))
+            
+            for item_data in items_data:
+                menu_item = self._parse_menu_item(item_data)
+                if menu_item:
+                    menu_items.append(menu_item)
+            
+            return CabinMenu(
+                cabin_code=cabin_code,
+                cabin_name=cabin_name,
+                menu_items=menu_items,
+                service_time=cabin_data.get('serviceTime'),
+                special_notes=cabin_data.get('specialNotes')
+            )
+            
+        except Exception:
+            return None
+    
+    def _parse_menu_item(self, item_data: Dict[str, Any]) -> Optional[MenuItem]:
+        """Parse individual menu item data"""
+        try:
+            return MenuItem(
+                name=item_data.get('name', 'Unknown Item'),
+                description=item_data.get('description'),
+                category=item_data.get('category', 'General'),
+                dietary_info=item_data.get('dietaryInfo', []),
+                allergens=item_data.get('allergens', []),
+                image_url=item_data.get('imageUrl')
+            )
+        except Exception:
+            return None
+    
+    async def check_api_health(self) -> Dict[str, Any]:
+        """Check if the Delta API is accessible"""
+        try:
+            # Try a simple request to check if API is up
+            response = await self.client.get(
+                f"{self.BASE_URL}/menuByFlight",
+                params={
+                    'departureLocalDate': '2025-08-13',
+                    'flightDepartureAirportCode': 'ATL',
+                    'flightNum': 30,
+                    'operatingCarrierCode': 'DL'
+                },
+                timeout=10.0
+            )
+            
+            return {
+                'status': 'healthy' if response.status_code < 500 else 'unhealthy',
+                'status_code': response.status_code,
+                'response_time_ms': int(response.elapsed.total_seconds() * 1000)
+            }
+            
+        except Exception as e:
+            return {
+                'status': 'unhealthy',
+                'error': str(e)
+            }
+    
+    async def close(self):
+        """Close the HTTP client"""
+        await self.client.aclose()
