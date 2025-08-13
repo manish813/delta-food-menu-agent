@@ -22,7 +22,7 @@ class MenuAgent:
         
         # Get Kimi configuration from environment
         self.kimi_api_key = os.getenv("KIMI_API_KEY")
-        self.kimi_base_url = os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1")
+        self.kimi_base_url = os.getenv("KIMI_BASE_URL")
         
         if not self.kimi_api_key:
             raise ValueError("KIMI_API_KEY not found in environment variables")
