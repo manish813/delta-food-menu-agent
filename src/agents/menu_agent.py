@@ -3,7 +3,7 @@ import asyncio
 from typing import Dict, Any, List
 from dotenv import load_dotenv
 
-from agents import Agent, Runner
+from agents import Agent, Runner, OpenAIChatCompletionsModel
 from ..client.delta_client import DeltaMenuClient
 from ..tools.menu_tools import MenuTools
 from ..tools.debug_tools import DebugTools
@@ -27,15 +27,18 @@ class MenuAgent:
         if not self.kimi_api_key:
             raise ValueError("KIMI_API_KEY not found in environment variables")
         
-        # Configure Kimi client
-        os.environ["OPENAI_API_KEY"] = self.kimi_api_key
-        os.environ["OPENAI_BASE_URL"] = self.kimi_base_url
+        # Create Kimi model instance
+        kimi_model = OpenAIChatCompletionsModel(
+            model="moonshot-v1-8k",
+            api_key=self.kimi_api_key,
+            base_url=self.kimi_base_url,
+        )
         
         # Create the main agent
         self.agent = Agent(
             name="Delta Menu Assistant",
             instructions=self._get_system_instructions(),
-            model="moonshot-v1-8k",  # Kimi model
+            model=kimi_model,
             tools=[
                 self.menu_tools.get_menu_by_flight,
                 self.menu_tools.get_cabin_menu,
