@@ -4,8 +4,9 @@ from typing import Dict, Any, Optional
 from datetime import date
 import time
 
-from ..models.menu import FlightMenuResponse, CabinMenu, MenuItem
+from ..models.menu import FlightMenuResponse, CabinMenu, MenuItem, MenuAvailabilityResponse, FlightMenuAvailability, CabinAvailability
 from ..models.requests import MenuQueryRequest
+from .oauth_manager import DeltaOAuthManager
 
 
 class DeltaMenuClient:
@@ -24,11 +25,12 @@ class DeltaMenuClient:
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
     
-    def __init__(self):
+    def __init__(self, oauth_manager: Optional[DeltaOAuthManager] = None):
         self.client = httpx.AsyncClient(
             headers=self.DEFAULT_HEADERS,
             timeout=30.0
         )
+        self.oauth_manager = oauth_manager or DeltaOAuthManager()
     
     async def get_menu_by_flight(self, request: MenuQueryRequest) -> FlightMenuResponse:
         """Get menu for specific flight"""
@@ -214,6 +216,116 @@ class DeltaMenuClient:
                 'error': str(e)
             }
     
+    async def check_menu_availability(self, flight_legs: list) -> MenuAvailabilityResponse:
+        """Check menu availability for flights using OAuth authentication"""
+        start_time = time.time()
+        
+        try:
+            # Get OAuth token
+            access_token = await self.oauth_manager.get_access_token()
+            
+            # Prepare request data
+            request_data = {
+                "flightLegs": flight_legs
+            }
+            
+            # Generate transaction ID
+            import uuid
+            transaction_id = str(uuid.uuid4()).upper()
+            
+            # Headers for availability API
+            headers = {
+                'accept': 'application/json',
+                'channelID': 'EM',
+                'TransactionID': transaction_id,
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            response = await self.client.post(
+                f"{self.BASE_URL}/digitalMenuAvailability",
+                json=request_data,
+                headers=headers
+            )
+            
+            response_time_ms = int((time.time() - start_time) * 1000)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return self._parse_availability_response(data, response_time_ms)
+            else:
+                return MenuAvailabilityResponse(
+                    flight_legs=[],
+                    success=False,
+                    error_message=f"Availability API returned status code {response.status_code}",
+                    api_response_time_ms=response_time_ms
+                )
+                
+        except httpx.TimeoutException:
+            return MenuAvailabilityResponse(
+                flight_legs=[],
+                success=False,
+                error_message="Availability request timed out",
+                api_response_time_ms=30000
+            )
+        except Exception as e:
+            return MenuAvailabilityResponse(
+                flight_legs=[],
+                success=False,
+                error_message=str(e)
+            )
+    
+    def _parse_availability_response(self, data: Dict[str, Any], response_time_ms: int) -> MenuAvailabilityResponse:
+        """Parse the menu availability API response"""
+        try:
+            if not data or 'flightLegs' not in data:
+                return MenuAvailabilityResponse(
+                    flight_legs=[],
+                    success=False,
+                    error_message="Invalid availability response format",
+                    api_response_time_ms=response_time_ms
+                )
+            
+            flight_legs = []
+            for flight_data in data['flightLegs']:
+                cabins = []
+                for cabin_data in flight_data.get('cabins', []):
+                    cabin = CabinAvailability(
+                        cabin_type_code=cabin_data.get('cabinTypeCode', ''),
+                        cabin_type_desc=cabin_data.get('cabinTypeDesc', ''),
+                        pre_select_menu_available=cabin_data.get('preSelectMenuAvailable', False),
+                        digital_menu_available=cabin_data.get('digitalMenuAvailable', False),
+                        cabin_preselect_window_start_utc_ts=cabin_data.get('cabinPreselectWindowStartUtcTs'),
+                        cabin_preselect_window_end_utc_ts=cabin_data.get('cabinPreselectWindowEndUtcTs')
+                    )
+                    cabins.append(cabin)
+                
+                flight = FlightMenuAvailability(
+                    operating_carrier_code=flight_data.get('operatingCarrierCode', ''),
+                    flight_num=flight_data.get('flightNum', 0),
+                    flight_departure_airport_code=flight_data.get('flightDepartureAirportCode', ''),
+                    departure_local_date=flight_data.get('departureLocalDate', ''),
+                    status=str(flight_data.get('status', '')),
+                    cabins=cabins
+                )
+                flight_legs.append(flight)
+            
+            return MenuAvailabilityResponse(
+                flight_legs=flight_legs,
+                success=True,
+                api_response_time_ms=response_time_ms
+            )
+            
+        except Exception as e:
+            return MenuAvailabilityResponse(
+                flight_legs=[],
+                success=False,
+                error_message=f"Failed to parse availability response: {str(e)}",
+                api_response_time_ms=response_time_ms
+            )
+    
     async def close(self):
         """Close the HTTP client"""
         await self.client.aclose()
+        if hasattr(self, 'oauth_manager'):
+            await self.oauth_manager.close()

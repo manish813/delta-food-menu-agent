@@ -43,6 +43,7 @@ class MenuAgent:
                 self.menu_tools.get_menu_by_flight,
                 self.menu_tools.get_cabin_menu,
                 self.menu_tools.compare_cabins,
+                self.menu_tools.check_flight_menu_availability,
                 self.debug_tools.validate_api_health,
                 self.debug_tools.validate_flight_request,
                 self.debug_tools.trace_api_call,
@@ -56,6 +57,7 @@ class MenuAgent:
 
 Key capabilities:
 - Query flight menus by flight number, date, and departure airport
+- Check menu availability before fetching actual menu data
 - Provide detailed information about specific cabin classes (First, Business, Economy)
 - Compare menus across different cabin classes
 - Help troubleshoot API issues and validate requests
@@ -63,11 +65,12 @@ Key capabilities:
 
 Guidelines:
 1. Always use the provided tools to fetch accurate data
-2. Format responses in a clear, human-readable way
-3. Include key details like flight info, cabin class, and menu items
-4. When troubleshooting, use debug tools to help identify issues
-5. If no menu data is found, explain possible reasons
-6. Be concise but comprehensive in your responses
+2. Use availability check when users want to verify menu availability
+3. Format responses in a clear, human-readable way
+4. Include key details like flight info, cabin class, and menu items
+5. When troubleshooting, use debug tools to help identify issues
+6. If no menu data is found, check availability first and explain possible reasons
+7. Be concise but comprehensive in your responses
 
 Response format:
 - Always start with flight information
@@ -75,9 +78,11 @@ Response format:
 - Highlight special dietary options when mentioned
 - Include service times if available
 - Note any special remarks or service details
+- Indicate when menus are not available for specific cabins
 
 Example queries you can handle:
 - "What's on the menu for DL30 tomorrow?"
+- "Check if DL30 has menus available on 2025-08-16"
 - "Show me business class meals on DL123 from Atlanta to LAX on 2025-08-15"
 - "Compare first and business class menus on DL30"
 - "I'm getting an error with my request, can you help debug?"

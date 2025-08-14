@@ -20,7 +20,8 @@ class MenuTools:
         flight_number: int,
         departure_airport: str = "ATL",
         operating_carrier: str = "DL",
-        lang_cd: str = "en-US"
+        lang_cd: str = "en-US",
+        check_availability: bool = False
     ) -> Dict[str, Any]:
         """
         Get complete menu for a specific flight across all cabin classes.
@@ -31,11 +32,43 @@ class MenuTools:
             departure_airport: Departure airport code (default: ATL)
             operating_carrier: Airline carrier code (default: DL)
             lang_cd: Language code (default: en-US)
+            check_availability: Whether to check menu availability first (default: False)
             
         Returns:
             Structured response with flight info and cabin menus
         """
         try:
+            # Optional: Check availability first
+            if check_availability:
+                availability = await self.check_flight_menu_availability(
+                    departure_date=departure_date,
+                    flight_number=flight_number,
+                    departure_airport=departure_airport,
+                    operating_carrier=operating_carrier
+                )
+                
+                if not availability["success"]:
+                    return {
+                        "query_type": "complete_menu",
+                        "success": False,
+                        "error_message": f"Availability check failed: {availability['error_message']}",
+                        "availability_check": availability
+                    }
+                
+                # Check if any cabin has digital menu available
+                available_cabins = [
+                    code for code, info in availability["availability"].items()
+                    if info["digital_menu_available"]
+                ]
+                
+                if not available_cabins:
+                    return {
+                        "query_type": "complete_menu",
+                        "success": False,
+                        "error_message": "No digital menus available for this flight",
+                        "availability_check": availability
+                    }
+            
             # Parse date string
             dep_date = date.fromisoformat(departure_date)
             
@@ -108,7 +141,8 @@ class MenuTools:
         cabin_code: str,
         departure_airport: str = "ATL",
         operating_carrier: str = "DL",
-        lang_cd: str = "en-US"
+        lang_cd: str = "en-US",
+        check_availability: bool = False
     ) -> Dict[str, Any]:
         """
         Get menu for a specific cabin class on a flight.
@@ -120,11 +154,39 @@ class MenuTools:
             departure_airport: Departure airport code (default: ATL)
             operating_carrier: Airline carrier code (default: DL)
             lang_cd: Language code (default: en-US)
+            check_availability: Whether to check menu availability first (default: False)
             
         Returns:
             Menu details for the specified cabin class
         """
         try:
+            # Optional: Check availability first
+            if check_availability:
+                availability = await self.check_flight_menu_availability(
+                    departure_date=departure_date,
+                    flight_number=flight_number,
+                    departure_airport=departure_airport,
+                    operating_carrier=operating_carrier
+                )
+                
+                if not availability["success"]:
+                    return {
+                        "query_type": "cabin_menu",
+                        "success": False,
+                        "error_message": f"Availability check failed: {availability['error_message']}",
+                        "availability_check": availability
+                    }
+                
+                # Check if this specific cabin has digital menu available
+                cabin_availability = availability["availability"].get(cabin_code.upper())
+                if not cabin_availability or not cabin_availability.get("digital_menu_available"):
+                    return {
+                        "query_type": "cabin_menu",
+                        "success": False,
+                        "error_message": f"Digital menu not available for cabin {cabin_code}",
+                        "availability_check": availability
+                    }
+            
             dep_date = date.fromisoformat(departure_date)
             
             request = MenuQueryRequest(
