@@ -2,7 +2,8 @@ import httpx
 from typing import Dict, Any, Optional
 import time
 
-from ..models.menu import FlightMenuResponse, CabinMenu, MenuItem, MenuAvailabilityResponse, FlightMenuAvailability, CabinAvailability
+from ..models.menu import FlightMenuResponse, MenuService, Menu, MenuItem, MenuAvailabilityResponse, \
+    FlightMenuAvailability, CabinAvailability, FlightLeg
 from ..models.requests import MenuQueryRequest
 from .oauth_manager import DeltaOAuthManager
 
@@ -126,7 +127,7 @@ class DeltaMenuClient:
                 departure_date=request.departure_date,
                 departure_airport=request.departure_airport,
                 arrival_airport=arrival_airport,
-                cabins=cabins,
+                menu_services=cabins,
                 success=True,
                 api_response_time_ms=response_time_ms
             )
@@ -152,28 +153,54 @@ class DeltaMenuClient:
                 api_response_time_ms=response_time_ms
             )
 
-    def _parse_cabin_menu(self, menu_service_data: Dict[str, Any]) -> Optional[CabinMenu]:
+    def _parse_cabin_menu(self, menu_service_data: Dict[str, Any]) -> Optional[MenuService]:
         """Parse individual cabin menu data from a menuService object"""
         try:
             cabin_code = menu_service_data.get('cabinTypeCode', 'Unknown')
             cabin_name = menu_service_data.get('cabinTypeDesc', cabin_code)
             
-            menu_items = []
+            menus = []
             for menu_data in menu_service_data.get('menus', []):
-                for item_data in menu_data.get('menuItems', []):
-                    menu_item = self._parse_menu_item(item_data)
-                    if menu_item:
-                        menu_items.append(menu_item)
+                menu = self._parse_menu(menu_data)
+                if menu and menu.menu_items:  # Only add menus with items
+                    menus.append(menu)
+            
+            if not menus:
+                return None
+
+            return MenuService(
+                cabin_code=cabin_code,
+                cabin_name=cabin_name,
+                menus=menus,
+                service_time=menu_service_data.get('primaryMenuServiceTypeDesc'),
+                special_notes=menu_service_data.get('cabinWelcomeMessage')
+            )
+            
+        except Exception:
+            return None
+
+    def _parse_menu(self, menu_data: Dict[str, Any]) -> Optional[Menu]:
+        """Parse individual menu data"""
+        try:
+            menu_items = []
+            for item_data in menu_data.get('menuItems', []):
+                menu_item = self._parse_menu_item(item_data)
+                if menu_item:
+                    menu_items.append(menu_item)
             
             if not menu_items:
                 return None
 
-            return CabinMenu(
-                cabin_code=cabin_code,
-                cabin_name=cabin_name,
+            return Menu(
+                menu_id=str(menu_data.get('menuId', '')),
+                course_type=menu_data.get('menuCourseTypeDesc'),
+                service_type=menu_data.get('menuServiceTypeDesc'),
+                menu_type=menu_data.get('menuTypeDesc'),
+                title=menu_data.get('menuTitleText'),
+                subtitle=menu_data.get('menuSubTitleText'),
                 menu_items=menu_items,
-                service_time=menu_service_data.get('primaryMenuServiceTypeDesc'),
-                special_notes=menu_service_data.get('cabinWelcomeMessage')
+                effective_date=menu_data.get('menuEffectiveDate'),
+                expiry_date=menu_data.get('menuExpiryDate')
             )
             
         except Exception:
@@ -226,7 +253,7 @@ class DeltaMenuClient:
                 'error': str(e)
             }
     
-    async def check_menu_availability(self, flight_legs: list) -> MenuAvailabilityResponse:
+    async def check_menu_availability(self, flight_legs: list[FlightLeg]) -> MenuAvailabilityResponse:
         """Check menu availability for flights using OAuth authentication"""
         start_time = time.time()
         
@@ -299,7 +326,7 @@ class DeltaMenuClient:
             flight_legs = []
             for flight_data in data['flightLegs']:
                 cabins = []
-                for cabin_data in flight_data.get('cabins', []):
+                for cabin_data in flight_data.get('menu_services', []):
                     cabin = CabinAvailability(
                         cabin_type_code=cabin_data.get('cabinTypeCode', ''),
                         cabin_type_desc=cabin_data.get('cabinTypeDesc', ''),

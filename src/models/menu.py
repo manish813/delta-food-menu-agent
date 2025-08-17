@@ -13,13 +13,39 @@ class MenuItem(BaseModel):
     image_url: Optional[str] = None
 
 
-class CabinMenu(BaseModel):
-    """Menu for a specific cabin class"""
-    cabin_code: str = Field(..., description="Cabin class code (C, F, W, Y)")
-    cabin_name: str = Field(..., description="Name of the cabin class (e.g., Delta One, Delta Premium Select, IMC")
+class Menu(BaseModel):
+    """Individual menu within a cabin (e.g., Lunch, Dinner, Snacks, Beverages)"""
+    menu_id: Optional[str] = None
+    course_type: Optional[str] = Field(None, description="Course type like 'Meal', 'Snacks', 'Beverages'")
+    service_type: Optional[str] = Field(None, description="Service type like 'Lunch/Dinner', 'Light Bites', 'Wines'")
+    menu_type: Optional[str] = Field(None, description="Menu type like 'Western Menu'")
+    title: Optional[str] = Field(None, description="Menu title text")
+    subtitle: Optional[str] = Field(None, description="Menu subtitle text")
     menu_items: List[MenuItem] = Field(default_factory=list)
-    service_time: Optional[str] = None
-    special_notes: Optional[str] = None
+    effective_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+
+
+class MenuServiceLanguage(BaseModel):
+    """Language details for a menu service"""
+    menu_service_lang_code: str = Field(..., description="Language code")
+    menu_service_lang_desc: str = Field(..., description="Language description")
+    menu_service_lang_selected: bool = Field(..., description="Indicates if the language is selected")
+
+
+class MenuService(BaseModel):
+    """Service-level data for a specific cabin class, containing multiple menus"""
+    menu_service_id: int = Field(..., description="Unique identifier for the menu service")
+    menu_service_desc: str = Field(..., description="Description of the menu service")
+    menu_service_meal_time_window: str = Field(..., description="Meal time window description")
+    cabin_type_code: str = Field(..., description="Cabin class code (C, F, W, Y)")
+    cabin_type_desc: str = Field(..., description="Name of the cabin class (e.g., Delta One)")
+    cabin_welcome_header: str = Field(..., description="Welcome header text")
+    cabin_welcome_title: str = Field(..., description="Welcome title text")
+    cabin_welcome_message: str = Field(..., description="Welcome message text")
+    primary_menu_service_type_desc: str = Field(..., description="Primary service type description")
+    menu_service_languages: List[MenuServiceLanguage] = Field(..., description="List of available languages")
+    menus: List[Menu] = Field(default_factory=list)
 
 
 class FlightMenuResponse(BaseModel):
@@ -29,7 +55,7 @@ class FlightMenuResponse(BaseModel):
     departure_date: date = Field(..., description="Date of the flight departure")
     departure_airport: str = Field(..., description="Departure airport code")
     arrival_airport: Optional[str] = None
-    cabins: List[CabinMenu] = Field(default_factory=list)
+    menu_services: List[MenuService] = Field(default_factory=list)
     success: bool = True
     error_message: Optional[str] = None
     api_response_time_ms: Optional[int] = None
@@ -42,6 +68,12 @@ class FlightMenuError(BaseModel):
     error_code: Optional[str] = None
     request_params: Optional[Dict] = None
 
+class FlightLeg(BaseModel):
+    """Details of a flight leg for menu availability"""
+    operating_carrier_code: str = Field(..., description="Airline carrier code")
+    flight_num: int = Field(..., description="Flight number")
+    flight_departure_airport_code: str = Field(..., description="Departure airport code")
+    departure_local_date: str = Field(..., description="Flight departure date in local timezone")
 
 class CabinAvailability(BaseModel):
     """Menu availability for a specific cabin class"""

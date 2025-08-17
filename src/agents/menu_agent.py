@@ -41,9 +41,7 @@ class MenuAgent:
             model=kimi_model,
             tools=[
                 self.menu_tools.get_menu_by_flight,
-                self.menu_tools.get_cabin_menu,
-                self.menu_tools.compare_cabins,
-                self.menu_tools.check_flight_menu_availability,
+                self.menu_tools.check_menu_availability,
                 self.debug_tools.validate_api_health,
                 self.debug_tools.validate_flight_request,
                 self.debug_tools.trace_api_call,
@@ -78,7 +76,7 @@ Response format:
 - Highlight special dietary options when mentioned
 - Include service times if available
 - Note any special remarks or service details
-- Indicate when menus are not available for specific cabins
+- Indicate when menus are not available for specific menu_services
 
 Example queries you can handle:
 - "What's on the menu for DL30 tomorrow?"

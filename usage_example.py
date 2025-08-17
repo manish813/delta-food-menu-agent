@@ -6,11 +6,11 @@ import asyncio
 import sys
 import os
 
+from src.client.delta_client import DeltaMenuClient
+from src.tools.menu_tools import MenuTools
+
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-from client.delta_client import DeltaMenuClient
-from tools.menu_tools import MenuTools
 
 
 async def demonstrate_usage():
@@ -51,7 +51,7 @@ async def demonstrate_usage():
         
         print(f"\n📊 Summary: {len(available_cabins)} cabins have digital menus available")
         
-        # Step 2: Fetch menus only for available cabins
+        # Step 2: Fetch menus only for available menu_services
         if available_cabins:
             print(f"\n🍽️ Fetching menus for available cabins: {', '.join(available_cabins)}")
             

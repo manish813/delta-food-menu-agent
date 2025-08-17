@@ -1,7 +1,9 @@
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from datetime import date
-from .menu import CabinMenu
+
+from src.models.menu import MenuService
+
 
 # Using a simplified MenuItem for tool output
 class SimpleMenuItem(BaseModel):
@@ -23,7 +25,7 @@ class ToolResponse(BaseModel):
 
 class CompleteMenuResponse(ToolResponse):
     flight_info: Optional[FlightInfo] = None
-    cabins: Optional[List[CabinMenu]] = None
+    menu_services: Optional[List[MenuService]] = None
     availability_check: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
 
@@ -32,19 +34,6 @@ class CabinDetail(BaseModel):
     name: str
     service_time: Optional[str] = None
     special_notes: Optional[str] = None
-
-class CategorizedMenu(BaseModel):
-    appetizers: List[SimpleMenuItem]
-    entrees: List[SimpleMenuItem]
-    desserts: List[SimpleMenuItem]
-    beverages: List[SimpleMenuItem]
-
-class CabinMenuResponse(ToolResponse):
-    flight_info: Optional[FlightInfo] = None
-    cabin: Optional[CabinDetail] = None
-    menu: Optional[CategorizedMenu] = None
-    availability_check: Optional[Dict[str, Any]] = None
-    metadata: Optional[Dict[str, Any]] = None
 
 class CabinComparisonDetail(BaseModel):
     name: str
