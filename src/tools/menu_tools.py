@@ -5,6 +5,16 @@ from agents import function_tool
 from ..client.delta_client import DeltaMenuClient
 from ..models.requests import MenuQueryRequest
 from ..models.menu import FlightMenuResponse, CabinMenu
+from ..models.responses import (
+    CompleteMenuResponse,
+    CabinMenuResponse,
+    CabinComparisonResponse,
+    FlightInfo,
+    SimpleMenuItem,
+    CabinDetail,
+    CategorizedMenu,
+    CabinComparisonDetail,
+)
 
 
 class MenuTools:
@@ -48,12 +58,12 @@ class MenuTools:
                 )
                 
                 if not availability["success"]:
-                    return {
-                        "query_type": "complete_menu",
-                        "success": False,
-                        "error_message": f"Availability check failed: {availability['error_message']}",
-                        "availability_check": availability
-                    }
+                    return CompleteMenuResponse(
+                        query_type="complete_menu",
+                        success=False,
+                        error_message=f"Availability check failed: {availability['error_message']}",
+                        availability_check=availability
+                    ).model_dump(exclude_none=True)
                 
                 # Check if any cabin has digital menu available
                 available_cabins = [
@@ -62,12 +72,12 @@ class MenuTools:
                 ]
                 
                 if not available_cabins:
-                    return {
-                        "query_type": "complete_menu",
-                        "success": False,
-                        "error_message": "No digital menus available for this flight",
-                        "availability_check": availability
-                    }
+                    return CompleteMenuResponse(
+                        query_type="complete_menu",
+                        success=False,
+                        error_message="No digital menus available for this flight",
+                        availability_check=availability
+                    ).model_dump(exclude_none=True)
             
             # Parse date string
             dep_date = date.fromisoformat(departure_date)
@@ -85,53 +95,35 @@ class MenuTools:
             response = await self.client.get_menu_by_flight(request)
             
             # Format response for readability
-            return {
-                "query_type": "complete_menu",
-                "flight_info": {
-                    "carrier": response.carrier_code,
-                    "flight_number": response.flight_number,
-                    "date": response.departure_date.isoformat(),
-                    "departure_airport": response.departure_airport,
-                    "arrival_airport": response.arrival_airport
-                },
-                "success": response.success,
-                "error_message": response.error_message,
-                "cabins": [
-                    {
-                        "cabin_code": cabin.cabin_code,
-                        "cabin_name": cabin.cabin_name,
-                        "service_time": cabin.service_time,
-                        "special_notes": cabin.special_notes,
-                        "menu_items": [
-                            {
-                                "name": item.name,
-                                "description": item.description,
-                                "category": item.category,
-                                "dietary_info": item.dietary_info,
-                                "allergens": item.allergens
-                            }
-                            for item in cabin.menu_items
-                        ]
-                    }
-                    for cabin in response.cabins
-                ],
-                "metadata": {
-                    "api_response_time_ms": response.api_response_time_ms
-                }
-            }
+            flight_info = FlightInfo(
+                carrier=response.carrier_code,
+                flight_number=response.flight_number,
+                date=response.departure_date,
+                departure_airport=response.departure_airport,
+                arrival_airport=response.arrival_airport
+            )
+
+            return CompleteMenuResponse(
+                query_type="complete_menu",
+                flight_info=flight_info,
+                success=response.success,
+                error_message=response.error_message,
+                cabins=response.cabins,
+                metadata={"api_response_time_ms": response.api_response_time_ms}
+            ).model_dump(exclude_none=True)
             
         except ValueError as e:
-            return {
-                "query_type": "complete_menu",
-                "success": False,
-                "error_message": f"Invalid date format: {e}. Use YYYY-MM-DD format."
-            }
+            return CompleteMenuResponse(
+                query_type="complete_menu",
+                success=False,
+                error_message=f"Invalid date format: {e}. Use YYYY-MM-DD format."
+            ).model_dump(exclude_none=True)
         except Exception as e:
-            return {
-                "query_type": "complete_menu",
-                "success": False,
-                "error_message": str(e)
-            }
+            return CompleteMenuResponse(
+                query_type="complete_menu",
+                success=False,
+                error_message=str(e)
+            ).model_dump(exclude_none=True)
     
     @function_tool
     async def get_cabin_menu(
@@ -170,22 +162,22 @@ class MenuTools:
                 )
                 
                 if not availability["success"]:
-                    return {
-                        "query_type": "cabin_menu",
-                        "success": False,
-                        "error_message": f"Availability check failed: {availability['error_message']}",
-                        "availability_check": availability
-                    }
+                    return CabinMenuResponse(
+                        query_type="cabin_menu",
+                        success=False,
+                        error_message=f"Availability check failed: {availability['error_message']}",
+                        availability_check=availability
+                    ).model_dump(exclude_none=True)
                 
                 # Check if this specific cabin has digital menu available
                 cabin_availability = availability["availability"].get(cabin_code.upper())
                 if not cabin_availability or not cabin_availability.get("digital_menu_available"):
-                    return {
-                        "query_type": "cabin_menu",
-                        "success": False,
-                        "error_message": f"Digital menu not available for cabin {cabin_code}",
-                        "availability_check": availability
-                    }
+                    return CabinMenuResponse(
+                        query_type="cabin_menu",
+                        success=False,
+                        error_message=f"Digital menu not available for cabin {cabin_code}",
+                        availability_check=availability
+                    ).model_dump(exclude_none=True)
             
             dep_date = date.fromisoformat(departure_date)
             
@@ -211,67 +203,71 @@ class MenuTools:
                 # If only one cabin returned, use it
                 target_cabin = response.cabins[0]
             elif not target_cabin:
-                return {
-                    "query_type": "cabin_menu",
-                    "success": False,
-                    "error_message": f"No menu found for cabin {cabin_code}"
-                }
+                return CabinMenuResponse(
+                    query_type="cabin_menu",
+                    success=False,
+                    error_message=f"No menu found for cabin {cabin_code}"
+                ).model_dump(exclude_none=True)
             
-            return {
-                "query_type": "cabin_menu",
-                "flight_info": {
-                    "carrier": response.carrier_code,
-                    "flight_number": response.flight_number,
-                    "date": response.departure_date.isoformat(),
-                    "departure_airport": response.departure_airport
-                },
-                "cabin": {
-                    "code": target_cabin.cabin_code,
-                    "name": target_cabin.cabin_name,
-                    "service_time": target_cabin.service_time,
-                    "special_notes": target_cabin.special_notes
-                },
-                "menu": {
-                    "appetizers": [
-                        {"name": item.name, "description": item.description}
-                        for item in target_cabin.menu_items
-                        if item.category.lower() in ['appetizer', 'starter']
-                    ],
-                    "entrees": [
-                        {"name": item.name, "description": item.description}
-                        for item in target_cabin.menu_items
-                        if item.category.lower() in ['entree', 'main', 'main course']
-                    ],
-                    "desserts": [
-                        {"name": item.name, "description": item.description}
-                        for item in target_cabin.menu_items
-                        if item.category.lower() in ['dessert', 'sweet']
-                    ],
-                    "beverages": [
-                        {"name": item.name, "description": item.description}
-                        for item in target_cabin.menu_items
-                        if item.category.lower() in ['beverage', 'drink']
-                    ]
-                },
-                "success": response.success,
-                "error_message": response.error_message,
-                "metadata": {
-                    "api_response_time_ms": response.api_response_time_ms
-                }
-            }
+            flight_info = FlightInfo(
+                carrier=response.carrier_code,
+                flight_number=response.flight_number,
+                date=response.departure_date,
+                departure_airport=response.departure_airport
+            )
+
+            cabin_detail = CabinDetail(
+                code=target_cabin.cabin_code,
+                name=target_cabin.cabin_name,
+                service_time=target_cabin.service_time,
+                special_notes=target_cabin.special_notes
+            )
+
+            categorized_menu = CategorizedMenu(
+                appetizers=[
+                    SimpleMenuItem(name=item.name, description=item.description, dietary_info=item.dietary_info)
+                    for item in target_cabin.menu_items
+                    if item.category.lower() in ['appetizer', 'starter']
+                ],
+                entrees=[
+                    SimpleMenuItem(name=item.name, description=item.description, dietary_info=item.dietary_info)
+                    for item in target_cabin.menu_items
+                    if item.category.lower() in ['entree', 'main', 'main course']
+                ],
+                desserts=[
+                    SimpleMenuItem(name=item.name, description=item.description, dietary_info=item.dietary_info)
+                    for item in target_cabin.menu_items
+                    if item.category.lower() in ['dessert', 'sweet']
+                ],
+                beverages=[
+                    SimpleMenuItem(name=item.name, description=item.description, dietary_info=item.dietary_info)
+                    for item in target_cabin.menu_items
+                    if item.category.lower() in ['beverage', 'drink']
+                ]
+            )
+
+            return CabinMenuResponse(
+                query_type="cabin_menu",
+                flight_info=flight_info,
+                cabin=cabin_detail,
+                menu=categorized_menu,
+                success=response.success,
+                error_message=response.error_message,
+                metadata={"api_response_time_ms": response.api_response_time_ms}
+            ).model_dump(exclude_none=True)
             
         except ValueError as e:
-            return {
-                "query_type": "cabin_menu",
-                "success": False,
-                "error_message": f"Invalid date format: {e}. Use YYYY-MM-DD format."
-            }
+            return CabinMenuResponse(
+                query_type="cabin_menu",
+                success=False,
+                error_message=f"Invalid date format: {e}. Use YYYY-MM-DD format."
+            ).model_dump(exclude_none=True)
         except Exception as e:
-            return {
-                "query_type": "cabin_menu",
-                "success": False,
-                "error_message": str(e)
-            }
+            return CabinMenuResponse(
+                query_type="cabin_menu",
+                success=False,
+                error_message=str(e)
+            ).model_dump(exclude_none=True)
     
     @function_tool
     async def compare_cabins(
@@ -308,11 +304,11 @@ class MenuTools:
             response = await self.client.get_menu_by_flight(request)
             
             if not response.success:
-                return {
-                    "query_type": "cabin_comparison",
-                    "success": False,
-                    "error_message": response.error_message
-                }
+                return CabinComparisonResponse(
+                    query_type="cabin_comparison",
+                    success=False,
+                    error_message=response.error_message
+                ).model_dump(exclude_none=True)
             
             # Build comparison
             cabin_menus = {}
@@ -320,42 +316,44 @@ class MenuTools:
                 cabin_menus[cabin_code] = None
                 for cabin in response.cabins:
                     if cabin.cabin_code.upper() == cabin_code.upper():
-                        cabin_menus[cabin_code] = {
-                            "name": cabin.cabin_name,
-                            "menu_summary": {
+                        cabin_menus[cabin_code] = CabinComparisonDetail(
+                            name=cabin.cabin_name,
+                            menu_summary={
                                 "total_items": len(cabin.menu_items),
                                 "categories": list(set(item.category for item in cabin.menu_items))
                             },
-                            "highlights": [
+                            highlights=[
                                 {"name": item.name, "category": item.category}
                                 for item in cabin.menu_items[:3]  # Top 3 items
                             ]
-                        }
+                        )
                         break
+
+            flight_info = FlightInfo(
+                carrier=response.carrier_code,
+                flight_number=response.flight_number,
+                date=response.departure_date,
+                departure_airport=response.departure_airport,
+                arrival_airport=response.arrival_airport
+            )
             
-            return {
-                "query_type": "cabin_comparison",
-                "flight_info": {
-                    "carrier": response.carrier_code,
-                    "flight_number": response.flight_number,
-                    "date": response.departure_date.isoformat()
-                },
-                "cabin_comparison": cabin_menus,
-                "success": True,
-                "metadata": {
-                    "api_response_time_ms": response.api_response_time_ms
-                }
-            }
+            return CabinComparisonResponse(
+                query_type="cabin_comparison",
+                flight_info=flight_info,
+                cabin_comparison=cabin_menus,
+                success=True,
+                metadata={"api_response_time_ms": response.api_response_time_ms}
+            ).model_dump(exclude_none=True)
             
         except ValueError as e:
-            return {
-                "query_type": "cabin_comparison",
-                "success": False,
-                "error_message": f"Invalid date format: {e}. Use YYYY-MM-DD format."
-            }
+            return CabinComparisonResponse(
+                query_type="cabin_comparison",
+                success=False,
+                error_message=f"Invalid date format: {e}. Use YYYY-MM-DD format."
+            ).model_dump(exclude_none=True)
         except Exception as e:
-            return {
-                "query_type": "cabin_comparison",
-                "success": False,
-                "error_message": str(e)
-            }
+            return CabinComparisonResponse(
+                query_type="cabin_comparison",
+                success=False,
+                error_message=str(e)
+            ).model_dump(exclude_none=True)

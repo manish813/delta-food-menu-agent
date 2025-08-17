@@ -1,7 +1,5 @@
 import httpx
-import asyncio
 from typing import Dict, Any, Optional
-from datetime import date
 import time
 
 from ..models.menu import FlightMenuResponse, CabinMenu, MenuItem, MenuAvailabilityResponse, FlightMenuAvailability, CabinAvailability
@@ -99,44 +97,50 @@ class DeltaMenuClient:
     def _parse_api_response(self, data: Dict[str, Any], request: MenuQueryRequest, response_time_ms: int) -> FlightMenuResponse:
         """Parse the Delta API response into our Pydantic models"""
         try:
-            # Handle different possible response structures
-            if not data or 'error' in data:
+            if not data or not data.get('flightMenus'):
+                error_message = "Empty or invalid response from API"
+                if isinstance(data, dict) and 'error' in data:
+                    error_message = data['error']
                 return FlightMenuResponse(
                     carrier_code=request.operating_carrier,
                     flight_number=request.flight_number,
                     departure_date=request.departure_date,
                     departure_airport=request.departure_airport,
                     success=False,
-                    error_message=data.get('error', 'Empty response'),
+                    error_message=error_message,
                     api_response_time_ms=response_time_ms
                 )
-            
-            # Parse the response based on expected structure
+
+            flight_menu_data = data['flightMenus'][0]
+            arrival_airport = flight_menu_data.get('flightArrivalAirportCode')
             cabins = []
-            
-            # Handle both single cabin and multiple cabin responses
-            if 'cabins' in data:
-                for cabin_data in data['cabins']:
-                    cabin = self._parse_cabin_menu(cabin_data)
-                    if cabin:
-                        cabins.append(cabin)
-            elif 'cabin' in data:
-                cabin = self._parse_cabin_menu(data['cabin'])
+
+            for menu_service_data in flight_menu_data.get('menuServices', []):
+                cabin = self._parse_cabin_menu(menu_service_data)
                 if cabin:
                     cabins.append(cabin)
-            
-            # Create response object
+
             return FlightMenuResponse(
                 carrier_code=request.operating_carrier,
                 flight_number=request.flight_number,
                 departure_date=request.departure_date,
                 departure_airport=request.departure_airport,
-                arrival_airport=data.get('arrivalAirportCode'),
+                arrival_airport=arrival_airport,
                 cabins=cabins,
                 success=True,
                 api_response_time_ms=response_time_ms
             )
-            
+
+        except (KeyError, IndexError) as e:
+            return FlightMenuResponse(
+                carrier_code=request.operating_carrier,
+                flight_number=request.flight_number,
+                departure_date=request.departure_date,
+                departure_airport=request.departure_airport,
+                success=False,
+                error_message=f"Failed to parse response due to missing key: {str(e)}",
+                api_response_time_ms=response_time_ms
+            )
         except Exception as e:
             return FlightMenuResponse(
                 carrier_code=request.operating_carrier,
@@ -144,47 +148,53 @@ class DeltaMenuClient:
                 departure_date=request.departure_date,
                 departure_airport=request.departure_airport,
                 success=False,
-                error_message=f"Failed to parse response: {str(e)}",
+                error_message=f"An unexpected error occurred during parsing: {str(e)}",
                 api_response_time_ms=response_time_ms
             )
-    
-    def _parse_cabin_menu(self, cabin_data: Dict[str, Any]) -> Optional[CabinMenu]:
-        """Parse individual cabin menu data"""
+
+    def _parse_cabin_menu(self, menu_service_data: Dict[str, Any]) -> Optional[CabinMenu]:
+        """Parse individual cabin menu data from a menuService object"""
         try:
-            cabin_code = cabin_data.get('cabinCode', cabin_data.get('code', 'Unknown'))
-            cabin_name = cabin_data.get('cabinName', cabin_data.get('name', cabin_code))
+            cabin_code = menu_service_data.get('cabinTypeCode', 'Unknown')
+            cabin_name = menu_service_data.get('cabinTypeDesc', cabin_code)
             
             menu_items = []
+            for menu_data in menu_service_data.get('menus', []):
+                for item_data in menu_data.get('menuItems', []):
+                    menu_item = self._parse_menu_item(item_data)
+                    if menu_item:
+                        menu_items.append(menu_item)
             
-            # Parse menu items from different possible structures
-            items_data = cabin_data.get('menuItems', cabin_data.get('items', []))
-            
-            for item_data in items_data:
-                menu_item = self._parse_menu_item(item_data)
-                if menu_item:
-                    menu_items.append(menu_item)
-            
+            if not menu_items:
+                return None
+
             return CabinMenu(
                 cabin_code=cabin_code,
                 cabin_name=cabin_name,
                 menu_items=menu_items,
-                service_time=cabin_data.get('serviceTime'),
-                special_notes=cabin_data.get('specialNotes')
+                service_time=menu_service_data.get('primaryMenuServiceTypeDesc'),
+                special_notes=menu_service_data.get('cabinWelcomeMessage')
             )
             
         except Exception:
             return None
-    
+
     def _parse_menu_item(self, item_data: Dict[str, Any]) -> Optional[MenuItem]:
         """Parse individual menu item data"""
         try:
+            dietary_info = [
+                d.get('menuItemDietaryDesc') 
+                for d in item_data.get('menuItemDietaryAsgmts', []) 
+                if d.get('menuItemDietaryDesc')
+            ]
+            
             return MenuItem(
-                name=item_data.get('name', 'Unknown Item'),
-                description=item_data.get('description'),
-                category=item_data.get('category', 'General'),
-                dietary_info=item_data.get('dietaryInfo', []),
-                allergens=item_data.get('allergens', []),
-                image_url=item_data.get('imageUrl')
+                name=item_data.get('menuItemDesc', 'Unknown Item'),
+                description=item_data.get('menuItemAdditionalDesc'),
+                category=item_data.get('menuItemTypeName', 'General'),
+                dietary_info=dietary_info,
+                allergens=[],
+                image_url=None
             )
         except Exception:
             return None
@@ -274,7 +284,7 @@ class DeltaMenuClient:
                 success=False,
                 error_message=str(e)
             )
-    
+
     def _parse_availability_response(self, data: Dict[str, Any], response_time_ms: int) -> MenuAvailabilityResponse:
         """Parse the menu availability API response"""
         try:
@@ -285,7 +295,7 @@ class DeltaMenuClient:
                     error_message="Invalid availability response format",
                     api_response_time_ms=response_time_ms
                 )
-            
+
             flight_legs = []
             for flight_data in data['flightLegs']:
                 cabins = []
@@ -299,7 +309,7 @@ class DeltaMenuClient:
                         cabin_preselect_window_end_utc_ts=cabin_data.get('cabinPreselectWindowEndUtcTs')
                     )
                     cabins.append(cabin)
-                
+
                 flight = FlightMenuAvailability(
                     operating_carrier_code=flight_data.get('operatingCarrierCode', ''),
                     flight_num=flight_data.get('flightNum', 0),
@@ -309,13 +319,13 @@ class DeltaMenuClient:
                     cabins=cabins
                 )
                 flight_legs.append(flight)
-            
+
             return MenuAvailabilityResponse(
                 flight_legs=flight_legs,
                 success=True,
                 api_response_time_ms=response_time_ms
             )
-            
+
         except Exception as e:
             return MenuAvailabilityResponse(
                 flight_legs=[],
@@ -323,7 +333,7 @@ class DeltaMenuClient:
                 error_message=f"Failed to parse availability response: {str(e)}",
                 api_response_time_ms=response_time_ms
             )
-    
+
     async def close(self):
         """Close the HTTP client"""
         await self.client.aclose()

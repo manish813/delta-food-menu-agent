@@ -1,0 +1,57 @@
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
+from datetime import date
+from .menu import CabinMenu
+
+# Using a simplified MenuItem for tool output
+class SimpleMenuItem(BaseModel):
+    name: str
+    description: Optional[str] = None
+    dietary_info: Optional[List[str]] = None
+
+class FlightInfo(BaseModel):
+    carrier: str
+    flight_number: int
+    date: date
+    departure_airport: str
+    arrival_airport: Optional[str] = None
+
+class ToolResponse(BaseModel):
+    query_type: str
+    success: bool
+    error_message: Optional[str] = None
+
+class CompleteMenuResponse(ToolResponse):
+    flight_info: Optional[FlightInfo] = None
+    cabins: Optional[List[CabinMenu]] = None
+    availability_check: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+class CabinDetail(BaseModel):
+    code: str
+    name: str
+    service_time: Optional[str] = None
+    special_notes: Optional[str] = None
+
+class CategorizedMenu(BaseModel):
+    appetizers: List[SimpleMenuItem]
+    entrees: List[SimpleMenuItem]
+    desserts: List[SimpleMenuItem]
+    beverages: List[SimpleMenuItem]
+
+class CabinMenuResponse(ToolResponse):
+    flight_info: Optional[FlightInfo] = None
+    cabin: Optional[CabinDetail] = None
+    menu: Optional[CategorizedMenu] = None
+    availability_check: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+class CabinComparisonDetail(BaseModel):
+    name: str
+    menu_summary: Dict[str, Any]
+    highlights: List[Dict[str, str]]
+
+class CabinComparisonResponse(ToolResponse):
+    flight_info: Optional[FlightInfo] = None
+    cabin_comparison: Optional[Dict[str, Optional[CabinComparisonDetail]]] = None
+    metadata: Optional[Dict[str, Any]] = None

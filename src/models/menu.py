@@ -15,8 +15,8 @@ class MenuItem(BaseModel):
 
 class CabinMenu(BaseModel):
     """Menu for a specific cabin class"""
-    cabin_code: str = Field(..., description="Cabin class code (F, C, Y)")
-    cabin_name: str = Field(..., description="Name of the cabin class (e.g., First, Business, Economy)") 
+    cabin_code: str = Field(..., description="Cabin class code (C, F, W, Y)")
+    cabin_name: str = Field(..., description="Name of the cabin class (e.g., Delta One, Delta Premium Select, IMC")
     menu_items: List[MenuItem] = Field(default_factory=list)
     service_time: Optional[str] = None
     special_notes: Optional[str] = None
