@@ -102,7 +102,7 @@ class MenuService(BaseModel):
 
 class FlightMenuResponse(BaseModel):
     """Complete flight menu response"""
-    model_config = ConfigDict(alias_generator=to_camel)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
     operating_carrier_code: str = Field(..., description="Airline carrier code", examples=["DL"])
     flight_num: int = Field(..., description="Flight number")
     flight_departure_date: str = Field(..., description="Flight departure date")
@@ -126,7 +126,7 @@ class FlightMenuError(BaseModel):
 
 class FlightLeg(BaseModel):
     """Details of a flight leg for menu availability"""
-    model_config = ConfigDict(alias_generator=to_camel)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
     operating_carrier_code: str = Field(..., description="Airline carrier code")
     flight_num: int = Field(..., description="Flight number")
     flight_departure_airport_code: str = Field(..., description="Departure airport code")
@@ -155,7 +155,7 @@ class FlightMenuAvailability(BaseModel):
 
 class MenuAvailabilityResponse(BaseModel):
     """Complete menu availability response"""
-    flight_legs: List[FlightMenuAvailability] = Field(..., description="Availability for all requested flights")
+    flight_legs: List[FlightMenuAvailability] = Field(default_factory=list, description="Availability for all requested flights")
     success: bool = True
     error_message: Optional[str] = None
     api_response_time_ms: Optional[int] = None
