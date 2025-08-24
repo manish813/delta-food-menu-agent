@@ -158,7 +158,7 @@ class DeltaMenuClient:
             
             # Prepare request data
             request_data = {
-                "flightLegs": flight_legs
+                "flightLegs": [leg.model_dump(by_alias=True) for leg in flight_legs]
             }
             
             # Generate transaction ID
@@ -210,44 +210,11 @@ class DeltaMenuClient:
     def _parse_availability_response(self, data: Dict[str, Any], response_time_ms: int) -> MenuAvailabilityResponse:
         """Parse the menu availability API response"""
         try:
-            if not data or 'flightLegs' not in data:
-                return MenuAvailabilityResponse(
-                    flight_legs=[],
-                    success=False,
-                    error_message="Invalid availability response format",
-                    api_response_time_ms=response_time_ms
-                )
-
-            flight_legs = []
-            for flight_data in data['flightLegs']:
-                cabins = []
-                for cabin_data in flight_data.get('menu_services', []):
-                    cabin = CabinAvailability(
-                        cabin_type_code=cabin_data.get('cabinTypeCode', ''),
-                        cabin_type_desc=cabin_data.get('cabinTypeDesc', ''),
-                        pre_select_menu_available=cabin_data.get('preSelectMenuAvailable', False),
-                        digital_menu_available=cabin_data.get('digitalMenuAvailable', False),
-                        cabin_preselect_window_start_utc_ts=cabin_data.get('cabinPreselectWindowStartUtcTs'),
-                        cabin_preselect_window_end_utc_ts=cabin_data.get('cabinPreselectWindowEndUtcTs')
-                    )
-                    cabins.append(cabin)
-
-                flight = FlightMenuAvailability(
-                    operating_carrier_code=flight_data.get('operatingCarrierCode', ''),
-                    flight_num=flight_data.get('flightNum', 0),
-                    flight_departure_airport_code=flight_data.get('flightDepartureAirportCode', ''),
-                    departure_local_date=flight_data.get('departureLocalDate', ''),
-                    status=str(flight_data.get('status', '')),
-                    cabins=cabins
-                )
-                flight_legs.append(flight)
-
             return MenuAvailabilityResponse(
-                flight_legs=flight_legs,
+                flight_legs=data.get('flightLegs', []),
                 success=True,
                 api_response_time_ms=response_time_ms
             )
-
         except Exception as e:
             return MenuAvailabilityResponse(
                 flight_legs=[],
