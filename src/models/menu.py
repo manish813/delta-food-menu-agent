@@ -83,20 +83,20 @@ class MenuServiceLanguage(BaseModel):
 class MenuService(BaseModel):
     """Service-level data for a specific cabin class, containing multiple menus"""
     model_config = ConfigDict(alias_generator=to_camel)
-    menu_service_id: int = Field(..., description="Unique identifier for the menu service")
+    menu_service_id: Optional[int] = Field(None, description="Unique identifier for the menu service")
     menu_service_desc: Optional[str] = Field(None, description="Description of the menu service")
     cabin_type_code: Optional[str] = Field(None, description="Cabin class code (C, F, W, Y)")
     cabin_type_desc: Optional[str] = Field(None, description="Name of the cabin class (e.g., Delta One)")
     menu_planner_name: Optional[str] = Field(None, description="Name of the menu planner")
     cabin_preselect_window_start_utc_ts: Optional[str] = Field(None, description="Pre-select window start time in UTC")
     cabin_preselect_window_end_utc_ts: Optional[str] = Field(None, description="Pre-select window end time in UTC")
-    digital_menu_avl: bool = Field(default=False, description="Whether digital menu is available")
-    menu_service_meal_time_window: str = Field(..., description="Meal time window description")
-    cabin_welcome_header: str = Field(..., description="Welcome header text")
-    cabin_welcome_title: str = Field(..., description="Welcome title text")
-    cabin_welcome_message: str = Field(..., description="Welcome message text")
-    primary_menu_service_type_desc: str = Field(..., description="Primary service type description")
-    menu_service_languages: List[MenuServiceLanguage] = Field(..., description="List of available languages")
+    digital_menu_avl: Optional[bool] = Field(None, description="Whether digital menu is available")
+    menu_service_meal_time_window: Optional[str] = Field(None, description="Meal time window description")
+    cabin_welcome_header: Optional[str] = Field(None, description="Welcome header text")
+    cabin_welcome_title: Optional[str] = Field(None, description="Welcome title text")
+    cabin_welcome_message: Optional[str] = Field(None, description="Welcome message text")
+    primary_menu_service_type_desc: Optional[str] = Field(None, description="Primary service type description")
+    menu_service_languages: Optional[List[MenuServiceLanguage]] = Field(None, description="List of available languages")
     menus: List[Menu] = Field(default_factory=list)
 
 
@@ -135,22 +135,22 @@ class FlightLeg(BaseModel):
 class CabinAvailability(BaseModel):
     """Menu availability for a specific cabin class"""
     model_config = ConfigDict(alias_generator=to_camel)
-    cabin_type_code: str = Field(..., description="Cabin class code (C, F, W, Y)")
-    cabin_type_desc: str = Field(..., description="Name of the cabin class (e.g., Business, First)")
-    pre_select_menu_available: bool = Field(..., description="Whether pre-select menu is available")
-    digital_menu_available: bool = Field(..., description="Whether digital menu is available via our API")
+    cabin_type_code: Optional[str] = Field(None, description="Cabin class code (C, F, W, Y)")
+    cabin_type_desc: Optional[str] = Field(None, description="Name of the cabin class (e.g., Business, First)")
+    pre_select_menu_available: Optional[bool] = Field(None, description="Whether pre-select menu is available")
+    digital_menu_available: Optional[bool] = Field(None, description="Whether digital menu is available via our API")
     cabin_preselect_window_start_utc_ts: Optional[str] = Field(None, description="Pre-select window start time in UTC")
     cabin_preselect_window_end_utc_ts: Optional[str] = Field(None, description="Pre-select window end time in UTC")
 
 
 class FlightMenuAvailability(BaseModel):
     """Menu availability response for a specific flight"""
-    operating_carrier_code: str = Field(..., description="Airline carrier code")
-    flight_num: int = Field(..., description="Flight number")
-    flight_departure_airport_code: str = Field(..., description="Departure airport code")
-    departure_local_date: str = Field(..., description="Flight departure date")
-    status: str = Field(..., description="API response status")
-    cabins: List[CabinAvailability] = Field(..., description="Availability info for each cabin class")
+    operating_carrier_code: Optional[str] = Field(None, description="Airline carrier code")
+    flight_num: Optional[int] = Field(None, description="Flight number")
+    flight_departure_airport_code: Optional[str] = Field(None, description="Departure airport code")
+    departure_local_date: Optional[str] = Field(None, description="Flight departure date")
+    status: Optional[str] = Field(None, description="API response status")
+    cabins: Optional[List[CabinAvailability]] = Field(None, description="Availability info for each cabin class")
 
 
 class MenuAvailabilityResponse(BaseModel):
