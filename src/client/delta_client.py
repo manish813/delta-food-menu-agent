@@ -67,9 +67,9 @@ class DeltaMenuClient:
             else:
                 return FlightMenuResponse(
                     operating_carrier_code=request.operating_carrier,
-                    flight_number=request.flight_number,
+                    flight_num=request.flight_number,
                     flight_departure_date=request.departure_date,
-                    flight_departure_airport=request.departure_airport,
+                    flight_departure_airport_code=request.departure_airport,
                     success=False,
                     error_message=f"API returned status code {response.status_code}",
                     api_response_time_ms=response_time_ms
@@ -78,9 +78,9 @@ class DeltaMenuClient:
         except httpx.TimeoutException:
             return FlightMenuResponse(
                 operating_carrier_code=request.operating_carrier,
-                flight_number=request.flight_number,
+                flight_num=request.flight_number,
                 flight_departure_date=request.departure_date,
-                flight_departure_airport=request.departure_airport,
+                flight_departure_airport_code=request.departure_airport,
                 success=False,
                 error_message="Request timed out",
                 api_response_time_ms=30000
@@ -88,9 +88,9 @@ class DeltaMenuClient:
         except Exception as e:
             return FlightMenuResponse(
                 operating_carrier_code=request.operating_carrier,
-                flight_number=request.flight_number,
+                flight_num=request.flight_number,
                 flight_departure_date=request.departure_date,
-                flight_departure_airport=request.departure_airport,
+                flight_departure_airport_code=request.departure_airport,
                 success=False,
                 error_message=str(e)
             )
@@ -104,40 +104,29 @@ class DeltaMenuClient:
                     error_message = data['error']
                 return FlightMenuResponse(
                     operating_carrier_code=request.operating_carrier,
-                    flight_number=request.flight_number,
+                    flight_num=request.flight_number,
                     flight_departure_date=request.departure_date,
-                    flight_departure_airport=request.departure_airport,
+                    flight_departure_airport_code=request.departure_airport,
                     success=False,
                     error_message=error_message,
                     api_response_time_ms=response_time_ms
                 )
 
             flight_menu_data = data['flightMenus'][0]
-            arrival_airport = flight_menu_data.get('flightArrivalAirportCode')
-            cabins = []
 
-            for menu_service_data in flight_menu_data.get('menuServices', []):
-                cabin = self._parse_cabin_menu(menu_service_data)
-                if cabin:
-                    cabins.append(cabin)
-
-            return FlightMenuResponse(
-                operating_carrier_code=request.operating_carrier,
-                flight_number=request.flight_number,
-                flight_departure_date=request.departure_date,
-                flight_departure_airport=request.departure_airport,
-                flight_arrival_airport=arrival_airport,
-                menu_services=cabins,
-                success=True,
-                api_response_time_ms=response_time_ms
-            )
+            return FlightMenuResponse.model_validate({
+                **flight_menu_data,
+                'success': True,
+                'error_message': None,
+                'api_response_time_ms': response_time_ms
+            })
 
         except (KeyError, IndexError) as e:
             return FlightMenuResponse(
                 operating_carrier_code=request.operating_carrier,
-                flight_number=request.flight_number,
+                flight_num=request.flight_number,
                 flight_departure_date=request.departure_date,
-                flight_departure_airport=request.departure_airport,
+                flight_departure_airport_code=request.departure_airport,
                 success=False,
                 error_message=f"Failed to parse response due to missing key: {str(e)}",
                 api_response_time_ms=response_time_ms
@@ -145,86 +134,86 @@ class DeltaMenuClient:
         except Exception as e:
             return FlightMenuResponse(
                 operating_carrier_code=request.operating_carrier,
-                flight_number=request.flight_number,
+                flight_num=request.flight_number,
                 flight_departure_date=request.departure_date,
-                flight_departure_airport=request.departure_airport,
+                flight_departure_airport_code=request.departure_airport,
                 success=False,
                 error_message=f"An unexpected error occurred during parsing: {str(e)}",
                 api_response_time_ms=response_time_ms
             )
 
-    def _parse_cabin_menu(self, menu_service_data: Dict[str, Any]) -> Optional[MenuService]:
-        """Parse individual cabin menu data from a menuService object"""
-        try:
-            cabin_code = menu_service_data.get('cabinTypeCode', 'Unknown')
-            cabin_name = menu_service_data.get('cabinTypeDesc', cabin_code)
-            
-            menus = []
-            for menu_data in menu_service_data.get('menus', []):
-                menu = self._parse_menu(menu_data)
-                if menu and menu.menu_items:  # Only add menus with items
-                    menus.append(menu)
-            
-            if not menus:
-                return None
-
-            return MenuService(
-                cabin_type_code=cabin_code,
-                cabin_type_desc=cabin_name,
-                menus=menus,
-                service_time=menu_service_data.get('primaryMenuServiceTypeDesc'),
-                special_notes=menu_service_data.get('cabinWelcomeMessage')
-            )
-            
-        except Exception:
-            return None
-
-    def _parse_menu(self, menu_data: Dict[str, Any]) -> Optional[Menu]:
-        """Parse individual menu data"""
-        try:
-            menu_items = []
-            for item_data in menu_data.get('menuItems', []):
-                menu_item = self._parse_menu_item(item_data)
-                if menu_item:
-                    menu_items.append(menu_item)
-            
-            if not menu_items:
-                return None
-
-            return Menu(
-                menu_id=str(menu_data.get('menuId', '')),
-                course_type=menu_data.get('menuCourseTypeDesc'),
-                service_type=menu_data.get('menuServiceTypeDesc'),
-                menu_type=menu_data.get('menuTypeDesc'),
-                title=menu_data.get('menuTitleText'),
-                subtitle=menu_data.get('menuSubTitleText'),
-                menu_items=menu_items,
-                effective_date=menu_data.get('menuEffectiveDate'),
-                expiry_date=menu_data.get('menuExpiryDate')
-            )
-            
-        except Exception:
-            return None
-
-    def _parse_menu_item(self, item_data: Dict[str, Any]) -> Optional[MenuItem]:
-        """Parse individual menu item data"""
-        try:
-            dietary_info = [
-                d.get('menuItemDietaryDesc') 
-                for d in item_data.get('menuItemDietaryAsgmts', []) 
-                if d.get('menuItemDietaryDesc')
-            ]
-            
-            return MenuItem(
-                name=item_data.get('menuItemDesc', 'Unknown Item'),
-                description=item_data.get('menuItemAdditionalDesc'),
-                category=item_data.get('menuItemTypeName', 'General'),
-                dietary_info=dietary_info,
-                allergens=[],
-                image_url=None
-            )
-        except Exception:
-            return None
+    # def _parse_cabin_menu(self, menu_service_data: Dict[str, Any]) -> Optional[MenuService]:
+    #     """Parse individual cabin menu data from a menuService object"""
+    #     try:
+    #         cabin_code = menu_service_data.get('cabinTypeCode', 'Unknown')
+    #         cabin_name = menu_service_data.get('cabinTypeDesc', cabin_code)
+    #
+    #         menus = []
+    #         for menu_data in menu_service_data.get('menus', []):
+    #             menu = self._parse_menu(menu_data)
+    #             if menu and menu.menu_items:  # Only add menus with items
+    #                 menus.append(menu)
+    #
+    #         if not menus:
+    #             return None
+    #
+    #         return MenuService(
+    #             cabin_type_code=cabin_code,
+    #             cabin_type_desc=cabin_name,
+    #             menus=menus,
+    #             service_time=menu_service_data.get('primaryMenuServiceTypeDesc'),
+    #             special_notes=menu_service_data.get('cabinWelcomeMessage')
+    #         )
+    #
+    #     except Exception:
+    #         return None
+    #
+    # def _parse_menu(self, menu_data: Dict[str, Any]) -> Optional[Menu]:
+    #     """Parse individual menu data"""
+    #     try:
+    #         menu_items = []
+    #         for item_data in menu_data.get('menuItems', []):
+    #             menu_item = self._parse_menu_item(item_data)
+    #             if menu_item:
+    #                 menu_items.append(menu_item)
+    #
+    #         if not menu_items:
+    #             return None
+    #
+    #         return Menu(
+    #             menu_id=str(menu_data.get('menuId', '')),
+    #             course_type=menu_data.get('menuCourseTypeDesc'),
+    #             service_type=menu_data.get('menuServiceTypeDesc'),
+    #             menu_type=menu_data.get('menuTypeDesc'),
+    #             title=menu_data.get('menuTitleText'),
+    #             subtitle=menu_data.get('menuSubTitleText'),
+    #             menu_items=menu_items,
+    #             effective_date=menu_data.get('menuEffectiveDate'),
+    #             expiry_date=menu_data.get('menuExpiryDate')
+    #         )
+    #
+    #     except Exception:
+    #         return None
+    #
+    # def _parse_menu_item(self, item_data: Dict[str, Any]) -> Optional[MenuItem]:
+    #     """Parse individual menu item data"""
+    #     try:
+    #         dietary_info = [
+    #             d.get('menuItemDietaryDesc')
+    #             for d in item_data.get('menuItemDietaryAsgmts', [])
+    #             if d.get('menuItemDietaryDesc')
+    #         ]
+    #
+    #         return MenuItem(
+    #             name=item_data.get('menuItemDesc', 'Unknown Item'),
+    #             description=item_data.get('menuItemAdditionalDesc'),
+    #             category=item_data.get('menuItemTypeName', 'General'),
+    #             dietary_info=dietary_info,
+    #             allergens=[],
+    #             image_url=None
+    #         )
+    #     except Exception:
+    #         return None
     
     async def check_api_health(self) -> Dict[str, Any]:
         """Check if the Delta API is accessible"""
