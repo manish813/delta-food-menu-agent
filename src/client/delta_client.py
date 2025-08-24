@@ -2,8 +2,8 @@ import httpx
 from typing import Dict, Any, Optional
 import time
 
-from ..models.menu import FlightMenuResponse, MenuService, Menu, MenuItem, MenuAvailabilityResponse, \
-    FlightMenuAvailability, CabinAvailability, FlightLeg
+from ..models.menu import FlightMenuResponse, MenuAvailabilityResponse, \
+    FlightMenuAvailability, CabinAvailability, FlightLeg, FlightMenuError
 from ..models.requests import MenuQueryRequest
 from .oauth_manager import DeltaOAuthManager
 
@@ -31,7 +31,7 @@ class DeltaMenuClient:
         )
         self.oauth_manager = oauth_manager or DeltaOAuthManager()
     
-    async def get_menu_by_flight(self, request: MenuQueryRequest) -> FlightMenuResponse:
+    async def get_menu_by_flight(self, request: MenuQueryRequest) -> FlightMenuResponse | FlightMenuError:
         """Get menu for specific flight"""
         try:
             start_time = time.time()
@@ -65,37 +65,29 @@ class DeltaMenuClient:
                 data = response.json()
                 return self._parse_api_response(data, request, response_time_ms)
             else:
-                return FlightMenuResponse(
-                    operating_carrier_code=request.operating_carrier,
-                    flight_num=request.flight_number,
-                    flight_departure_date=request.departure_date,
-                    flight_departure_airport_code=request.departure_airport,
+                data = response.json()
+                return FlightMenuError(
                     success=False,
-                    error_message=f"API returned status code {response.status_code}",
-                    api_response_time_ms=response_time_ms
+                    error_message=f"API returned {data}",
                 )
                 
         except httpx.TimeoutException:
             return FlightMenuResponse(
                 operating_carrier_code=request.operating_carrier,
                 flight_num=request.flight_number,
-                flight_departure_date=request.departure_date,
+                flight_departure_date=request.departure_date.isoformat(),
                 flight_departure_airport_code=request.departure_airport,
                 success=False,
                 error_message="Request timed out",
                 api_response_time_ms=30000
             )
         except Exception as e:
-            return FlightMenuResponse(
-                operating_carrier_code=request.operating_carrier,
-                flight_num=request.flight_number,
-                flight_departure_date=request.departure_date,
-                flight_departure_airport_code=request.departure_airport,
+            return FlightMenuError(
                 success=False,
                 error_message=str(e)
             )
     
-    def _parse_api_response(self, data: Dict[str, Any], request: MenuQueryRequest, response_time_ms: int) -> FlightMenuResponse:
+    def _parse_api_response(self, data: Dict[str, Any], request: MenuQueryRequest, response_time_ms: int) -> FlightMenuResponse | FlightMenuError:
         """Parse the Delta API response into our Pydantic models"""
         try:
             if not data or not data.get('flightMenus'):
@@ -105,7 +97,7 @@ class DeltaMenuClient:
                 return FlightMenuResponse(
                     operating_carrier_code=request.operating_carrier,
                     flight_num=request.flight_number,
-                    flight_departure_date=request.departure_date,
+                    flight_departure_date=request.departure_date.isoformat(),
                     flight_departure_airport_code=request.departure_airport,
                     success=False,
                     error_message=error_message,
@@ -114,107 +106,21 @@ class DeltaMenuClient:
 
             flight_menu_data = data['flightMenus'][0]
 
-            return FlightMenuResponse.model_validate({
+            flight_menu_response = FlightMenuResponse.model_validate({
                 **flight_menu_data,
                 'success': True,
                 'error_message': None,
                 'api_response_time_ms': response_time_ms
             })
+            return flight_menu_response
 
-        except (KeyError, IndexError) as e:
-            return FlightMenuResponse(
-                operating_carrier_code=request.operating_carrier,
-                flight_num=request.flight_number,
-                flight_departure_date=request.departure_date,
-                flight_departure_airport_code=request.departure_airport,
-                success=False,
-                error_message=f"Failed to parse response due to missing key: {str(e)}",
-                api_response_time_ms=response_time_ms
-            )
         except Exception as e:
-            return FlightMenuResponse(
-                operating_carrier_code=request.operating_carrier,
-                flight_num=request.flight_number,
-                flight_departure_date=request.departure_date,
-                flight_departure_airport_code=request.departure_airport,
+            return FlightMenuError(
                 success=False,
                 error_message=f"An unexpected error occurred during parsing: {str(e)}",
-                api_response_time_ms=response_time_ms
             )
 
-    # def _parse_cabin_menu(self, menu_service_data: Dict[str, Any]) -> Optional[MenuService]:
-    #     """Parse individual cabin menu data from a menuService object"""
-    #     try:
-    #         cabin_code = menu_service_data.get('cabinTypeCode', 'Unknown')
-    #         cabin_name = menu_service_data.get('cabinTypeDesc', cabin_code)
-    #
-    #         menus = []
-    #         for menu_data in menu_service_data.get('menus', []):
-    #             menu = self._parse_menu(menu_data)
-    #             if menu and menu.menu_items:  # Only add menus with items
-    #                 menus.append(menu)
-    #
-    #         if not menus:
-    #             return None
-    #
-    #         return MenuService(
-    #             cabin_type_code=cabin_code,
-    #             cabin_type_desc=cabin_name,
-    #             menus=menus,
-    #             service_time=menu_service_data.get('primaryMenuServiceTypeDesc'),
-    #             special_notes=menu_service_data.get('cabinWelcomeMessage')
-    #         )
-    #
-    #     except Exception:
-    #         return None
-    #
-    # def _parse_menu(self, menu_data: Dict[str, Any]) -> Optional[Menu]:
-    #     """Parse individual menu data"""
-    #     try:
-    #         menu_items = []
-    #         for item_data in menu_data.get('menuItems', []):
-    #             menu_item = self._parse_menu_item(item_data)
-    #             if menu_item:
-    #                 menu_items.append(menu_item)
-    #
-    #         if not menu_items:
-    #             return None
-    #
-    #         return Menu(
-    #             menu_id=str(menu_data.get('menuId', '')),
-    #             course_type=menu_data.get('menuCourseTypeDesc'),
-    #             service_type=menu_data.get('menuServiceTypeDesc'),
-    #             menu_type=menu_data.get('menuTypeDesc'),
-    #             title=menu_data.get('menuTitleText'),
-    #             subtitle=menu_data.get('menuSubTitleText'),
-    #             menu_items=menu_items,
-    #             effective_date=menu_data.get('menuEffectiveDate'),
-    #             expiry_date=menu_data.get('menuExpiryDate')
-    #         )
-    #
-    #     except Exception:
-    #         return None
-    #
-    # def _parse_menu_item(self, item_data: Dict[str, Any]) -> Optional[MenuItem]:
-    #     """Parse individual menu item data"""
-    #     try:
-    #         dietary_info = [
-    #             d.get('menuItemDietaryDesc')
-    #             for d in item_data.get('menuItemDietaryAsgmts', [])
-    #             if d.get('menuItemDietaryDesc')
-    #         ]
-    #
-    #         return MenuItem(
-    #             name=item_data.get('menuItemDesc', 'Unknown Item'),
-    #             description=item_data.get('menuItemAdditionalDesc'),
-    #             category=item_data.get('menuItemTypeName', 'General'),
-    #             dietary_info=dietary_info,
-    #             allergens=[],
-    #             image_url=None
-    #         )
-    #     except Exception:
-    #         return None
-    
+
     async def check_api_health(self) -> Dict[str, Any]:
         """Check if the Delta API is accessible"""
         try:
