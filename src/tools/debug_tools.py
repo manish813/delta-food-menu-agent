@@ -115,9 +115,9 @@ class DebugTools:
             "issues": issues,
             "recommendations": recommendations,
             "parameters": {
-                "departure_date": departure_date,
+                "flight_departure_date": departure_date,
                 "flight_number": flight_number,
-                "departure_airport": departure_airport,
+                "flight_departure_airport": departure_airport,
                 "operating_carrier": operating_carrier
             },
             "next_steps": {

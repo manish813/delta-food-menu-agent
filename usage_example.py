@@ -24,13 +24,13 @@ async def demonstrate_usage():
     try:
         # Example: Smart menu fetching workflow
         flight_details = {
-            "departure_date": "2025-08-16",
+            "flight_departure_date": "2025-08-16",
             "flight_number": 30,
-            "departure_airport": "ATL",
+            "flight_departure_airport": "ATL",
             "operating_carrier": "DL"
         }
         
-        print(f"\n🔍 Checking availability for {flight_details['operating_carrier']}{flight_details['flight_number']} on {flight_details['departure_date']}")
+        print(f"\n🔍 Checking availability for {flight_details['operating_carrier']}{flight_details['flight_number']} on {flight_details['flight_departure_date']}")
         
         # Step 1: Check availability first
         availability = await tools.check_flight_menu_availability(**flight_details)
@@ -59,10 +59,10 @@ async def demonstrate_usage():
                 print(f"\n--- {cabin_code} Class Menu ---")
                 
                 menu = await tools.get_cabin_menu(
-                    departure_date=flight_details["departure_date"],
+                    departure_date=flight_details["flight_departure_date"],
                     flight_number=flight_details["flight_number"],
                     cabin_code=cabin_code,
-                    departure_airport=flight_details["departure_airport"],
+                    departure_airport=flight_details["flight_departure_airport"],
                     operating_carrier=flight_details["operating_carrier"]
                 )
                 

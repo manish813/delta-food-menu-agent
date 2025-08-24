@@ -36,7 +36,7 @@ async def test_availability():
             print("✅ Availability check successful!")
             print(f"Flight: {availability['flight_info']['carrier']}{availability['flight_info']['flight_number']}")
             print(f"Date: {availability['flight_info']['date']}")
-            print(f"From: {availability['flight_info']['departure_airport']}")
+            print(f"From: {availability['flight_info']['flight_departure_airport']}")
             print()
             
             print("📊 Cabin Availability:")

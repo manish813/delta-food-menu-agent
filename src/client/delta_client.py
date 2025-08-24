@@ -66,10 +66,10 @@ class DeltaMenuClient:
                 return self._parse_api_response(data, request, response_time_ms)
             else:
                 return FlightMenuResponse(
-                    carrier_code=request.operating_carrier,
+                    operating_carrier_code=request.operating_carrier,
                     flight_number=request.flight_number,
-                    departure_date=request.departure_date,
-                    departure_airport=request.departure_airport,
+                    flight_departure_date=request.departure_date,
+                    flight_departure_airport=request.departure_airport,
                     success=False,
                     error_message=f"API returned status code {response.status_code}",
                     api_response_time_ms=response_time_ms
@@ -77,20 +77,20 @@ class DeltaMenuClient:
                 
         except httpx.TimeoutException:
             return FlightMenuResponse(
-                carrier_code=request.operating_carrier,
+                operating_carrier_code=request.operating_carrier,
                 flight_number=request.flight_number,
-                departure_date=request.departure_date,
-                departure_airport=request.departure_airport,
+                flight_departure_date=request.departure_date,
+                flight_departure_airport=request.departure_airport,
                 success=False,
                 error_message="Request timed out",
                 api_response_time_ms=30000
             )
         except Exception as e:
             return FlightMenuResponse(
-                carrier_code=request.operating_carrier,
+                operating_carrier_code=request.operating_carrier,
                 flight_number=request.flight_number,
-                departure_date=request.departure_date,
-                departure_airport=request.departure_airport,
+                flight_departure_date=request.departure_date,
+                flight_departure_airport=request.departure_airport,
                 success=False,
                 error_message=str(e)
             )
@@ -103,10 +103,10 @@ class DeltaMenuClient:
                 if isinstance(data, dict) and 'error' in data:
                     error_message = data['error']
                 return FlightMenuResponse(
-                    carrier_code=request.operating_carrier,
+                    operating_carrier_code=request.operating_carrier,
                     flight_number=request.flight_number,
-                    departure_date=request.departure_date,
-                    departure_airport=request.departure_airport,
+                    flight_departure_date=request.departure_date,
+                    flight_departure_airport=request.departure_airport,
                     success=False,
                     error_message=error_message,
                     api_response_time_ms=response_time_ms
@@ -122,11 +122,11 @@ class DeltaMenuClient:
                     cabins.append(cabin)
 
             return FlightMenuResponse(
-                carrier_code=request.operating_carrier,
+                operating_carrier_code=request.operating_carrier,
                 flight_number=request.flight_number,
-                departure_date=request.departure_date,
-                departure_airport=request.departure_airport,
-                arrival_airport=arrival_airport,
+                flight_departure_date=request.departure_date,
+                flight_departure_airport=request.departure_airport,
+                flight_arrival_airport=arrival_airport,
                 menu_services=cabins,
                 success=True,
                 api_response_time_ms=response_time_ms
@@ -134,20 +134,20 @@ class DeltaMenuClient:
 
         except (KeyError, IndexError) as e:
             return FlightMenuResponse(
-                carrier_code=request.operating_carrier,
+                operating_carrier_code=request.operating_carrier,
                 flight_number=request.flight_number,
-                departure_date=request.departure_date,
-                departure_airport=request.departure_airport,
+                flight_departure_date=request.departure_date,
+                flight_departure_airport=request.departure_airport,
                 success=False,
                 error_message=f"Failed to parse response due to missing key: {str(e)}",
                 api_response_time_ms=response_time_ms
             )
         except Exception as e:
             return FlightMenuResponse(
-                carrier_code=request.operating_carrier,
+                operating_carrier_code=request.operating_carrier,
                 flight_number=request.flight_number,
-                departure_date=request.departure_date,
-                departure_airport=request.departure_airport,
+                flight_departure_date=request.departure_date,
+                flight_departure_airport=request.departure_airport,
                 success=False,
                 error_message=f"An unexpected error occurred during parsing: {str(e)}",
                 api_response_time_ms=response_time_ms
@@ -169,8 +169,8 @@ class DeltaMenuClient:
                 return None
 
             return MenuService(
-                cabin_code=cabin_code,
-                cabin_name=cabin_name,
+                cabin_type_code=cabin_code,
+                cabin_type_desc=cabin_name,
                 menus=menus,
                 service_time=menu_service_data.get('primaryMenuServiceTypeDesc'),
                 special_notes=menu_service_data.get('cabinWelcomeMessage')

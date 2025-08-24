@@ -50,11 +50,11 @@ class MenuService(BaseModel):
 
 class FlightMenuResponse(BaseModel):
     """Complete flight menu response"""
-    carrier_code: str = Field(..., description="Airline carrier code")
+    operating_carrier_code: str = Field(..., description="Airline carrier code", examples=["DL"])
     flight_number: int = Field(..., description="Flight number")
-    departure_date: date = Field(..., description="Date of the flight departure")
-    departure_airport: str = Field(..., description="Departure airport code")
-    arrival_airport: Optional[str] = None
+    flight_departure_date: date = Field(..., description="Date of the flight departure")
+    flight_departure_airport: str = Field(..., description="flight Departure airport code")
+    flight_arrival_airport: Optional[str] = Field(..., description="Flight arrival airport code")
     menu_services: List[MenuService] = Field(default_factory=list)
     success: bool = True
     error_message: Optional[str] = None

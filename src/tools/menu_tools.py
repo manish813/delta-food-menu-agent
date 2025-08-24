@@ -106,11 +106,11 @@ class MenuTools:
             
             # Format response for readability
             flight_info = FlightInfo(
-                carrier=response.carrier_code,
+                carrier=response.operating_carrier_code,
                 flight_number=response.flight_number,
-                date=response.departure_date,
-                departure_airport=response.departure_airport,
-                arrival_airport=response.arrival_airport
+                date=response.flight_departure_date,
+                departure_airport=response.flight_departure_airport,
+                arrival_airport=response.flight_arrival_airport
             )
 
             return CompleteMenuResponse(
@@ -173,10 +173,10 @@ class MenuTools:
     # @function_tool
     # async def get_cabin_menu(
     #     self,
-    #     departure_date: str,
+    #     flight_departure_date: str,
     #     flight_number: int,
     #     cabin_code: str,
-    #     departure_airport: str = "ATL",
+    #     flight_departure_airport: str = "ATL",
     #     operating_carrier: str = "DL",
     #     lang_cd: str = "en-US",
     #     check_availability: bool = False
@@ -185,10 +185,10 @@ class MenuTools:
     #     Get menu for a specific cabin class on a flight.
     #
     #     Args:
-    #         departure_date: Flight departure date in YYYY-MM-DD format
+    #         flight_departure_date: Flight departure date in YYYY-MM-DD format
     #         flight_number: Flight number
     #         cabin_code: Cabin class code (F=First, C=Business, Y=Economy)
-    #         departure_airport: Departure airport code (default: ATL)
+    #         flight_departure_airport: Departure airport code (default: ATL)
     #         operating_carrier: Airline carrier code (default: DL)
     #         lang_cd: Language code (default: en-US)
     #         check_availability: Whether to check menu availability first (default: False)
@@ -202,8 +202,8 @@ class MenuTools:
     #             flight_leg = FlightLeg(
     #                 operating_carrier_code=operating_carrier,
     #                 flight_num=flight_number,
-    #                 flight_departure_airport_code=departure_airport,
-    #                 departure_local_date=departure_date,
+    #                 flight_departure_airport_code=flight_departure_airport,
+    #                 departure_local_date=flight_departure_date,
     #             )
     #             availability_response = await self.client.check_menu_availability(flight_legs=[flight_leg])
     #             availability = {
@@ -236,12 +236,12 @@ class MenuTools:
     #                     availability_check=availability
     #                 ).model_dump(exclude_none=True)
     #
-    #         dep_date = date.fromisoformat(departure_date)
+    #         dep_date = date.fromisoformat(flight_departure_date)
     #
     #         request = MenuQueryRequest(
-    #             departure_date=dep_date,
+    #             flight_departure_date=dep_date,
     #             flight_number=flight_number,
-    #             departure_airport=departure_airport,
+    #             flight_departure_airport=flight_departure_airport,
     #             operating_carrier=operating_carrier,
     #             cabin_code=cabin_code,
     #             lang_cd=lang_cd
@@ -267,10 +267,10 @@ class MenuTools:
     #             ).model_dump(exclude_none=True)
     #
     #         flight_info = FlightInfo(
-    #             carrier=response.carrier_code,
+    #             carrier=response.operating_carrier_code,
     #             flight_number=response.flight_number,
-    #             date=response.departure_date,
-    #             departure_airport=response.departure_airport
+    #             date=response.flight_departure_date,
+    #             flight_departure_airport=response.flight_departure_airport
     #         )
     #
     #         cabin_detail = CabinDetail(
@@ -334,32 +334,32 @@ class MenuTools:
     # @function_tool
     # async def compare_cabins(
     #     self,
-    #     departure_date: str,
+    #     flight_departure_date: str,
     #     flight_number: int,
     #     cabin_codes: List[str],
-    #     departure_airport: str = "ATL",
+    #     flight_departure_airport: str = "ATL",
     #     operating_carrier: str = "DL"
     # ) -> Dict[str, Any]:
     #     """
     #     Compare menus across multiple cabin classes.
     #
     #     Args:
-    #         departure_date: Flight departure date in YYYY-MM-DD format
+    #         flight_departure_date: Flight departure date in YYYY-MM-DD format
     #         flight_number: Flight number
     #         cabin_codes: List of cabin codes to compare (e.g., ["F", "C", "Y"])
-    #         departure_airport: Departure airport code (default: ATL)
+    #         flight_departure_airport: Departure airport code (default: ATL)
     #         operating_carrier: Airline carrier code (default: DL)
     #
     #     Returns:
     #         Comparison of menus across specified cabin classes
     #     """
     #     try:
-    #         dep_date = date.fromisoformat(departure_date)
+    #         dep_date = date.fromisoformat(flight_departure_date)
     #
     #         request = MenuQueryRequest(
-    #             departure_date=dep_date,
+    #             flight_departure_date=dep_date,
     #             flight_number=flight_number,
-    #             departure_airport=departure_airport,
+    #             flight_departure_airport=flight_departure_airport,
     #             operating_carrier=operating_carrier
     #         )
     #
@@ -397,11 +397,11 @@ class MenuTools:
     #                     break
     #
     #         flight_info = FlightInfo(
-    #             carrier=response.carrier_code,
+    #             carrier=response.operating_carrier_code,
     #             flight_number=response.flight_number,
-    #             date=response.departure_date,
-    #             departure_airport=response.departure_airport,
-    #             arrival_airport=response.arrival_airport
+    #             date=response.flight_departure_date,
+    #             flight_departure_airport=response.flight_departure_airport,
+    #             flight_arrival_airport=response.flight_arrival_airport
     #         )
     #
     #         return CabinComparisonResponse(
