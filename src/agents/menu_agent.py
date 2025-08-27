@@ -4,6 +4,8 @@ from typing import Dict, Any, List
 from dotenv import load_dotenv
 
 from agents import Agent, Runner, OpenAIChatCompletionsModel
+from openai import AsyncOpenAI
+
 from ..client.delta_client import DeltaMenuClient
 from ..tools.menu_tools import MenuTools
 from ..tools.debug_tools import DebugTools
@@ -22,16 +24,21 @@ class MenuAgent:
         
         # Get Kimi configuration from environment
         self.kimi_api_key = os.getenv("KIMI_API_KEY")
-        self.kimi_base_url = os.getenv("KIMI_BASE_URL")
+        self.kimi_base_url = os.getenv("KIMI_BASE_URL", "https://api.moonshot.ai/v1")
         
         if not self.kimi_api_key:
             raise ValueError("KIMI_API_KEY not found in environment variables")
         
+        # Configure OpenAI client for Kimi
+        kimi_client = AsyncOpenAI(
+            api_key=self.kimi_api_key,
+            base_url=self.kimi_base_url
+        )
+
         # Create Kimi model instance
         kimi_model = OpenAIChatCompletionsModel(
             model="moonshot-v1-8k",
-            api_key=self.kimi_api_key,
-            base_url=self.kimi_base_url,
+            openai_client=kimi_client,
         )
         
         # Create the main agent
