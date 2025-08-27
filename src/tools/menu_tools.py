@@ -26,7 +26,7 @@ class MenuTools:
         self,
         departure_date: str,
         flight_number: int,
-        departure_airport: str = "ATL",
+        departure_airport: str,
         operating_carrier: str = "DL",
         lang_cd: str = "en-US",
         check_availability: bool = False
@@ -37,7 +37,7 @@ class MenuTools:
         Args:
             departure_date: Flight departure date in YYYY-MM-DD format
             flight_number: Flight number (e.g., 30 for DL30)
-            departure_airport: Departure airport code (default: ATL)
+            departure_airport: Departure airport code
             operating_carrier: Airline carrier code (default: DL)
             lang_cd: Language code (default: en-US)
             check_availability: Whether to check menu availability first (default: False)
@@ -140,7 +140,7 @@ class MenuTools:
         self,
         departure_date: str,
         flight_number: int,
-        departure_airport: str = "ATL",
+        departure_airport: str,
         operating_carrier: str = "DL",
     ) -> Dict[str, Any]:
         """
@@ -149,7 +149,7 @@ class MenuTools:
         Args:
             departure_date: Flight departure date in YYYY-MM-DD format
             flight_number: Flight number
-            departure_airport: Departure airport code (default: ATL)
+            departure_airport: Departure airport code
             operating_carrier: Airline carrier code (default: DL)
 
         Returns:
