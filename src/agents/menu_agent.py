@@ -41,7 +41,11 @@ class MenuAgent:
             model=kimi_model,
             tools=[
                 self.menu_tools.get_menu_by_flight,
-                self.menu_tools.check_menu_availability
+                self.menu_tools.check_menu_availability,
+                self.debug_tools.validate_flight_request,
+                self.debug_tools.validate_api_health,
+                self.debug_tools.trace_api_call,
+                self.debug_tools.diagnose_error
             ]
         )
     

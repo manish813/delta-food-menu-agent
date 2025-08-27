@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import date
-from typing import Optional
+from typing import Optional, Dict, Any, List
 
 
 class MenuQueryRequest(BaseModel):
@@ -15,6 +15,30 @@ class MenuQueryRequest(BaseModel):
         json_encoders = {
             date: lambda v: v.isoformat()
         }
+
+
+class ValidationParameters(BaseModel):
+    """Parameters used in validation"""
+    flight_departure_date: str
+    flight_number: int
+    flight_departure_airport: str
+    operating_carrier: str
+
+
+class ValidationNextSteps(BaseModel):
+    """Next steps based on validation result"""
+    valid: str = "Ready to make API call"
+    invalid: str = "Please fix the issues above before proceeding"
+
+
+class FlightRequestValidation(BaseModel):
+    """Validation response for flight request parameters"""
+    tool: str = "request_validation"
+    is_valid: bool
+    issues: List[str]
+    recommendations: List[str]
+    parameters: ValidationParameters
+    next_steps: ValidationNextSteps
 
 
 class DebugRequest(BaseModel):

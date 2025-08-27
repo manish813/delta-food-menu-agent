@@ -1,10 +1,11 @@
 import httpx
 from typing import Dict, Any, Optional
 import time
+from datetime import date
 
 from ..models.menu import FlightMenuResponse, MenuAvailabilityResponse, \
     FlightMenuAvailability, CabinAvailability, FlightLeg, FlightMenuError
-from ..models.requests import MenuQueryRequest
+from ..models.requests import MenuQueryRequest, FlightRequestValidation, ValidationParameters, ValidationNextSteps
 from .oauth_manager import DeltaOAuthManager
 
 
@@ -118,81 +119,57 @@ class DeltaMenuClient:
             )
 
 
-    def validate_flight_request(
-            self,
-            departure_date: str,
-            flight_number: int,
-            departure_airport: str,
-            operating_carrier: str = "DL"
-    ) -> Dict[str, Any]:
+    def validate_flight_request(self, request: MenuQueryRequest) -> FlightRequestValidation:
         """
         Validate flight request parameters before making API calls.
 
         Args:
-            departure_date: Flight departure date in YYYY-MM-DD format
-            flight_number: Flight number
-            departure_airport: Departure airport code
-            operating_carrier: Airline carrier code
+            request: MenuQueryRequest model with flight parameters
 
         Returns:
-            Validation results and recommendations
+            FlightRequestValidation model with validation results
         """
         issues = []
         recommendations = []
 
-        # Validate date format
-        try:
-            from datetime import date, datetime
-            dep_date = date.fromisoformat(departure_date)
+        # Check if date is in the past
+        if request.departure_date < date.today():
+            issues.append("Departure date is in the past")
+            recommendations.append("Use a future date or today's date")
 
-            # Check if date is in the past
-            if dep_date < date.today():
-                issues.append("Departure date is in the past")
-                recommendations.append("Use a future date or today's date")
+        # Check if date is too far in the future (more than 1 year)
+        from datetime import timedelta
+        if request.departure_date > date.today() + timedelta(days=365):
+            issues.append("Departure date is more than 1 year in the future")
+            recommendations.append("Menu data may not be available for flights more than 1 year ahead")
 
-            # Check if date is too far in the future (more than 1 year)
-            from datetime import timedelta
-            if dep_date > date.today() + timedelta(days=365):
-                issues.append("Departure date is more than 1 year in the future")
-                recommendations.append("Menu data may not be available for flights more than 1 year ahead")
-
-        except ValueError:
-            issues.append("Invalid date format")
-            recommendations.append("Use YYYY-MM-DD format (e.g., 2025-08-13)")
-
-        # Validate flight number
-        if not isinstance(flight_number, int) or flight_number < 1 or flight_number > 9999:
+        # Validate flight number (already validated by Pydantic)
+        if request.flight_number > 9999:
             issues.append("Invalid flight number")
             recommendations.append("Flight number should be between 1 and 9999")
 
         # Validate airport code
-        if len(departure_airport) != 3 or not departure_airport.isalpha():
+        if len(request.departure_airport) != 3 or not request.departure_airport.isalpha():
             issues.append("Invalid airport code format")
             recommendations.append("Airport code should be 3 letters (e.g., ATL, LAX, JFK)")
 
         # Validate carrier code
-        if len(operating_carrier) != 2 or not operating_carrier.isalpha():
+        if len(request.operating_carrier) != 2 or not request.operating_carrier.isalpha():
             issues.append("Invalid carrier code format")
             recommendations.append("Carrier code should be 2 letters (e.g., DL, AA, UA)")
 
-        is_valid = len(issues) == 0
-
-        return {
-            "tool": "request_validation",
-            "is_valid": is_valid,
-            "issues": issues,
-            "recommendations": recommendations,
-            "parameters": {
-                "flight_departure_date": departure_date,
-                "flight_number": flight_number,
-                "flight_departure_airport": departure_airport,
-                "operating_carrier": operating_carrier
-            },
-            "next_steps": {
-                "valid": "Ready to make API call",
-                "invalid": "Please fix the issues above before proceeding"
-            }
-        }
+        return FlightRequestValidation(
+            is_valid=len(issues) == 0,
+            issues=issues,
+            recommendations=recommendations,
+            parameters=ValidationParameters(
+                flight_departure_date=request.departure_date.isoformat(),
+                flight_number=request.flight_number,
+                flight_departure_airport=request.departure_airport,
+                operating_carrier=request.operating_carrier
+            ),
+            next_steps=ValidationNextSteps()
+        )
 
     async def check_api_health(self) -> Dict[str, Any]:
         """Check if the Delta API is accessible"""

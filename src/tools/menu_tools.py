@@ -3,7 +3,7 @@ from datetime import date
 
 from agents import function_tool
 from ..client.delta_client import DeltaMenuClient
-from ..models.requests import MenuQueryRequest
+from ..models.requests import MenuQueryRequest, FlightRequestValidation
 from ..models.menu import FlightMenuResponse,  FlightLeg
 from ..models.responses import (
     CompleteMenuResponse,
@@ -29,7 +29,7 @@ class MenuTools:
         departure_airport: str,
         operating_carrier: str = "DL",
         lang_cd: str = "en-US"
-    ) -> Dict[str, Any]:
+    ) -> CompleteMenuResponse | FlightRequestValidation:
         """
         Get complete menu for a specific flight across all cabin classes.
         
@@ -53,7 +53,9 @@ class MenuTools:
                 lang_cd=lang_cd
             )
 
-            self.client.validate_flight_request(request)
+            flight_request_validation = self.client.validate_flight_request(request)
+            if not flight_request_validation.is_valid:
+                return flight_request_validation
 
             # Get menu data
             response = await self.client.get_menu_by_flight(request)
@@ -76,12 +78,6 @@ class MenuTools:
                 metadata={"api_response_time_ms": response.api_response_time_ms}
             ).model_dump(exclude_none=True)
 
-        except ValueError as e:
-            return CompleteMenuResponse(
-                query_type="complete_menu",
-                success=False,
-                error_message=f"Invalid date format: {e}. Use YYYY-MM-DD format."
-            ).model_dump(exclude_none=True)
         except Exception as e:
             return CompleteMenuResponse(
                 query_type="complete_menu",
