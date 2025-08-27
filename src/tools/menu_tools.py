@@ -22,37 +22,17 @@ class MenuTools:
         self.client = client
     
     @function_tool
-    async def get_menu_by_flight(
-        self,
-        departure_date: str,
-        flight_number: int,
-        departure_airport: str,
-        operating_carrier: str = "DL",
-        lang_cd: str = "en-US"
-    ) -> CompleteMenuResponse | FlightRequestValidation:
+    async def get_menu_by_flight(self, request: MenuQueryRequest) -> CompleteMenuResponse | FlightRequestValidation:
         """
         Get complete menu for a specific flight across all cabin classes.
         
         Args:
-            departure_date: Flight departure date in YYYY-MM-DD format
-            flight_number: Flight number (e.g., 30 for DL30)
-            departure_airport: Departure airport code
-            operating_carrier: Airline carrier code (default: DL)
-            lang_cd: Language code (default: en-US)
+            request: MenuQueryRequest with flight parameters
             
         Returns:
             Structured response with flight info and cabin menus
         """
         try:
-            # Create request
-            request = MenuQueryRequest(
-                departure_date=date.fromisoformat(departure_date),
-                flight_number=flight_number,
-                departure_airport=departure_airport,
-                operating_carrier=operating_carrier,
-                lang_cd=lang_cd
-            )
-
             flight_request_validation = self.client.validate_flight_request(request)
             if not flight_request_validation.is_valid:
                 return flight_request_validation
@@ -64,7 +44,7 @@ class MenuTools:
             flight_info = FlightInfo(
                 carrier=response.operating_carrier_code,
                 flight_number=response.flight_number,
-                date=date.fromisoformat(response.flight_departure_date),
+                date=request.departure_date,
                 departure_airport=response.flight_departure_airport,
                 arrival_airport=response.flight_arrival_airport
             )
