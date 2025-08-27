@@ -43,9 +43,6 @@ class DeltaMenuClient:
                 'operatingCarrierCode': request.operating_carrier
             }
             
-            if request.cabin_code:
-                params['cabinCode'] = request.cabin_code
-                
             # Generate transaction ID
             import uuid
             transaction_id = str(uuid.uuid4()).upper()

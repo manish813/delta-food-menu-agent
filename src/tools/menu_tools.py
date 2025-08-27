@@ -28,8 +28,7 @@ class MenuTools:
         flight_number: int,
         departure_airport: str,
         operating_carrier: str = "DL",
-        lang_cd: str = "en-US",
-        check_availability: bool = False
+        lang_cd: str = "en-US"
     ) -> Dict[str, Any]:
         """
         Get complete menu for a specific flight across all cabin classes.
@@ -40,75 +39,30 @@ class MenuTools:
             departure_airport: Departure airport code
             operating_carrier: Airline carrier code (default: DL)
             lang_cd: Language code (default: en-US)
-            check_availability: Whether to check menu availability first (default: False)
             
         Returns:
             Structured response with flight info and cabin menus
         """
         try:
-            # Optional: Check availability first
-            if check_availability:
-                flight_leg = FlightLeg(
-                    operating_carrier_code=operating_carrier,
-                    flight_num=flight_number,
-                    flight_departure_airport_code=departure_airport,
-                    departure_local_date=departure_date,
-                )
-                availability_response = await self.client.check_menu_availability(flight_legs=[flight_leg])
-                availability = {
-                    "success": availability_response.success,
-                    "error_message": availability_response.error_message,
-                    "availability": {}
-                }
-                if availability_response.success and availability_response.flight_legs:
-                    flight_leg_availability = availability_response.flight_legs[0]
-                    availability["availability"] = {
-                        cabin.cabin_type_code: cabin.model_dump()
-                        for cabin in flight_leg_availability.cabins
-                    }
-                
-                if not availability["success"]:
-                    return CompleteMenuResponse(
-                        query_type="complete_menu",
-                        success=False,
-                        error_message=f"Availability check failed: {availability['error_message']}",
-                        availability_check=availability
-                    ).model_dump(exclude_none=True)
-                
-                # Check if any cabin has digital menu available
-                available_cabins = [
-                    code for code, info in availability["availability"].items()
-                    if info["digital_menu_available"]
-                ]
-                
-                if not available_cabins:
-                    return CompleteMenuResponse(
-                        query_type="complete_menu",
-                        success=False,
-                        error_message="No digital menus available for this flight",
-                        availability_check=availability
-                    ).model_dump(exclude_none=True)
-            
-            # Parse date string
-            dep_date = date.fromisoformat(departure_date)
-            
             # Create request
             request = MenuQueryRequest(
-                departure_date=dep_date,
+                departure_date=date.fromisoformat(departure_date),
                 flight_number=flight_number,
                 departure_airport=departure_airport,
                 operating_carrier=operating_carrier,
                 lang_cd=lang_cd
             )
-            
+
+            self.client.validate_flight_request(request)
+
             # Get menu data
             response = await self.client.get_menu_by_flight(request)
-            
+
             # Format response for readability
             flight_info = FlightInfo(
                 carrier=response.operating_carrier_code,
                 flight_number=response.flight_number,
-                date=response.flight_departure_date,
+                date=date.fromisoformat(response.flight_departure_date),
                 departure_airport=response.flight_departure_airport,
                 arrival_airport=response.flight_arrival_airport
             )
@@ -121,7 +75,7 @@ class MenuTools:
                 menu_services=response.menu_services,
                 metadata={"api_response_time_ms": response.api_response_time_ms}
             ).model_dump(exclude_none=True)
-            
+
         except ValueError as e:
             return CompleteMenuResponse(
                 query_type="complete_menu",

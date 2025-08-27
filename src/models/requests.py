@@ -5,11 +5,10 @@ from typing import Optional
 
 class MenuQueryRequest(BaseModel):
     """Request parameters for Delta menu API"""
-    departure_date: date
-    flight_number: int
+    departure_date: date = Field(description="Flight departure date (YYYY-MM-DD)")
+    flight_number: int = Field(gt=0, description="Flight number")
     departure_airport: str = Field(description="Departure airport code")
     operating_carrier: str = Field(default="DL", description="Airline carrier code")
-    cabin_code: Optional[str] = Field(default=None, description="Specific cabin class (F, C, Y)")
     lang_cd: str = Field(default="en-US", description="Language code")
 
     class Config:
