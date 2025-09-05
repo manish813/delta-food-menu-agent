@@ -94,7 +94,7 @@ class MenuService(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
     menu_service_id: Optional[int] = None
     menu_service_desc: Optional[str] = None
-    cabin_type_code: Optional[str] = Field(None, description="C=Delta One, F=Delta Premium Select, W=IMC, Y=IMC")
+    cabin_type_code: Optional[str] = Field(None, description="C=Delta One/Business, F=Delta Premium Select/First, W=IMC/Comfort, Y=IMC/Coach")
     cabin_type_desc: Optional[str] = Field(None, examples=["Delta One", "Delta Premium Select", "Main Cabin"])
     menu_planner_name: Optional[str] = None
     cabin_preselect_window_start_utc_ts: Optional[str] = None
@@ -144,7 +144,7 @@ class FlightLeg(BaseModel):
 class CabinAvailability(BaseModel):
     """Menu availability for a specific cabin class"""
     model_config = ConfigDict(alias_generator=to_camel)
-    cabin_type_code: Optional[str] = Field(None, description="C=Delta One, F=Delta Premium Select, W=IMC, Y=IMC")
+    cabin_type_code: Optional[str] = Field(None, description="C=Delta One/Business, F=Delta Premium Select/First, W=IMC/Comfort, Y=IMC/Coach")
     cabin_type_desc: Optional[str] = Field(None, examples=["Delta One", "Delta Premium Select", "IMC"])
     pre_select_menu_available: Optional[bool] = None
     digital_menu_available: Optional[bool] = Field(None, description="Whether digital menu is available via API")
