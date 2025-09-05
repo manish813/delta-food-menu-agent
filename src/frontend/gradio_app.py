@@ -5,6 +5,11 @@ from typing import List, Dict, Any
 import os
 
 from ..agents.menu_agent import MenuAgent
+from ..utils.logging_config import setup_logging, get_logger
+
+# Setup logging
+setup_logging(log_file='gradio_app.log')
+logger = get_logger(__name__)
 
 
 class GradioInterface:
@@ -16,9 +21,11 @@ class GradioInterface:
     
     async def chat_response(self, message: str, history: List[List[str]], debug_mode: bool) -> str:
         """Process chat message and return response"""
+        logger.info(f"Processing message: {message[:100]}...")
         try:
             # Process message through agent
-            result = await self.agent.process_message(message, debug=debug_mode)
+            result = await self.agent.process_message(message, debug_mode)
+            logger.info(f"Agent response success: {result['success']}")
             
             if result["success"]:
                 response = result["response"]
@@ -27,13 +34,15 @@ class GradioInterface:
                 if debug_mode and result.get("debug_info"):
                     debug_info = result["debug_info"]
                     response += f"\n\n--- Debug Info ---\n"
-                    response += f"Tools used: {', '.join(debug_info.get('tools_used', []))}\n"
+                    if 'raw_response' in debug_info:
+                        response += f"Raw response: {debug_info['raw_response']}\n"
                     
                 return response
             else:
                 return f"Error: {result['response']}"
                 
         except Exception as e:
+            logger.error(f"Error processing message: {str(e)}", exc_info=True)
             error_msg = f"I encountered an error: {str(e)}"
             if debug_mode:
                 error_msg += f"\n\nDebug: {str(e)}"
@@ -78,7 +87,7 @@ def create_gradio_app() -> gr.Blocks:
             with gr.Column(scale=3):
                 chatbot = gr.Chatbot(
                     height=500,
-                    bubble_full_width=False,
+                    type="messages",
                     avatar_images=(None, "🤖"),
                     label="Conversation"
                 )
@@ -108,12 +117,12 @@ def create_gradio_app() -> gr.Blocks:
         
         # Event handlers
         def user(user_message, history):
-            return "", history + [[user_message, None]]
+            return "", history + [{"role": "user", "content": user_message}]
         
         async def bot(history, debug_mode):
-            user_message = history[-1][0]
+            user_message = history[-1]["content"]
             bot_message = await interface.chat_response(user_message, history, debug_mode)
-            history[-1][1] = bot_message
+            history.append({"role": "assistant", "content": bot_message})
             return history
         
         # Button click handler for examples
@@ -176,11 +185,14 @@ def create_simple_chat():
 if __name__ == "__main__":
     # Check for required environment variables
     if not os.getenv("KIMI_API_KEY"):
+        logger.warning("KIMI_API_KEY not found in environment variables")
         print("⚠️  Warning: KIMI_API_KEY not found in environment variables")
         print("Please set KIMI_API_KEY in your .env file")
     
     # Launch the app
+    logger.info("Starting Gradio app...")
     app = create_gradio_app()
+    logger.info("Launching app on http://localhost:7860")
     app.launch(
         server_name="0.0.0.0",
         server_port=7860,

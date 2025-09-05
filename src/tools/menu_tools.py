@@ -7,13 +7,13 @@ from ..models.requests import MenuQueryRequest, FlightRequestValidation
 from ..models.menu import FlightMenuResponse,  FlightLeg
 from ..models.responses import (
     CompleteMenuResponse,
-    CabinComparisonResponse,
     FlightInfo,
-    SimpleMenuItem,
-    CabinDetail,
-    CabinComparisonDetail,
 )
+from ..utils.logging_config import setup_logging, get_logger
 
+# Setup logging
+setup_logging(log_file='gradio_app.log')
+logger = get_logger(__name__)
 
 class MenuTools:
     """Tools for querying Delta flight menus"""
@@ -21,49 +21,73 @@ class MenuTools:
     def __init__(self, client: DeltaMenuClient):
         self.client = client
     
-    @function_tool
-    async def get_menu_by_flight(self, request: MenuQueryRequest) -> CompleteMenuResponse | FlightRequestValidation:
-        """
-        Get complete menu for a specific flight across all cabin classes.
-        
-        Args:
-            request: MenuQueryRequest with flight parameters
+    def get_menu_by_flight_tool(self):
+        """Create the menu function tool"""
+
+        @function_tool
+        async def get_menu_by_flight(
+                departure_date: str,
+                flight_number: int,
+                departure_airport: str,
+                operating_carrier: str = "DL"
+        ) -> Dict[str, Any]:
+            """
+            Get complete menu for a specific flight across all cabin classes.
             
-        Returns:
-            Structured response with flight info and cabin menus
-        """
-        try:
-            flight_request_validation = self.client.validate_flight_request(request)
-            if not flight_request_validation.is_valid:
-                return flight_request_validation
+            Args:
+                departure_date: Flight departure date in YYYY-MM-DD format
+                flight_number: Flight number (e.g., 30 for DL30)
+                departure_airport: Departure airport code (e.g., ATL, LAX, JFK)
+                operating_carrier: Airline carrier code (default: DL)
 
-            # Get menu data
-            response = await self.client.get_menu_by_flight(request)
+            Returns:
+                Structured response with flight info and cabin menus
+            """
+            try:
+                # Create MenuQueryRequest from individual parameters
+                from datetime import date
+                dep_date = date.fromisoformat(departure_date)
+                
+                request = MenuQueryRequest(
+                    departure_date=dep_date,
+                    flight_number=flight_number,
+                    departure_airport=departure_airport,
+                    operating_carrier=operating_carrier
+                )
 
-            # Format response for readability
-            flight_info = FlightInfo(
-                carrier=response.operating_carrier_code,
-                flight_number=response.flight_number,
-                date=request.departure_date,
-                departure_airport=response.flight_departure_airport,
-                arrival_airport=response.flight_arrival_airport
-            )
+                flight_request_validation = self.client.validate_flight_request(request)
+                if not flight_request_validation.is_valid:
+                    return flight_request_validation.model_dump(exclude_none=True)
 
-            return CompleteMenuResponse(
-                query_type="complete_menu",
-                flight_info=flight_info,
-                success=response.success,
-                error_message=response.error_message,
-                menu_services=response.menu_services,
-                metadata={"api_response_time_ms": response.api_response_time_ms}
-            ).model_dump(exclude_none=True)
+                # Get menu data
+                response = await self.client.get_menu_by_flight(request)
 
-        except Exception as e:
-            return CompleteMenuResponse(
-                query_type="complete_menu",
-                success=False,
-                error_message=str(e)
-            ).model_dump(exclude_none=True)
+                # Format response for readability
+                flight_info = FlightInfo(
+                    carrier=response.operating_carrier_code,
+                    flight_number=response.flight_num,
+                    date=dep_date,
+                    departure_airport=response.flight_departure_airport_code,
+                    arrival_airport=getattr(response, 'flight_arrival_airport_code', None)
+                )
+
+                return CompleteMenuResponse(
+                    query_type="complete_menu",
+                    flight_info=flight_info,
+                    success=response.success,
+                    error_message=response.error_message,
+                    menu_services=response.menu_services,
+                    metadata={"api_response_time_ms": response.api_response_time_ms}
+                ).model_dump(exclude_none=True)
+
+            except Exception as e:
+                return CompleteMenuResponse(
+                    query_type="complete_menu",
+                    success=False,
+                    error_message=str(e)
+                ).model_dump(exclude_none=True)
+        
+        return get_menu_by_flight
 
     @function_tool
     async def check_menu_availability(

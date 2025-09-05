@@ -7,7 +7,11 @@ from ..models.menu import FlightMenuResponse, MenuAvailabilityResponse, \
     FlightMenuAvailability, CabinAvailability, FlightLeg, FlightMenuError
 from ..models.requests import MenuQueryRequest, FlightRequestValidation, ValidationParameters, ValidationNextSteps
 from .oauth_manager import DeltaOAuthManager
+from ..utils.logging_config import setup_logging, get_logger
 
+# Setup logging
+setup_logging(log_file='gradio_app.log')
+logger = get_logger(__name__)
 
 class DeltaMenuClient:
     """Client for interacting with Delta's flight menu API"""
@@ -17,7 +21,7 @@ class DeltaMenuClient:
     DEFAULT_HEADERS = {
         'accept': 'application/json, text/plain, */*',
         'accept-language': 'en-US,en;q=0.8',
-        'channelid': 'DGMNPT',
+        'channelId': 'DGMNPT',
         'origin': 'https://menu.delta.com',
         'priority': 'u=1, i',
         'referer': 'https://menu.delta.com/',
