@@ -22,9 +22,11 @@ class GradioInterface:
     async def chat_response(self, message: str, history: List[List[str]], debug_mode: bool) -> str:
         """Process chat message and return response"""
         logger.info(f"Processing message: {message[:100]}...")
+        logger.info(f"printing history in chat response method : {history}")
         try:
+            messages = [{"role": msg["role"], "content": msg["content"]} for msg in history]
             # Process message through agent
-            result = await self.agent.process_message(message, debug_mode)
+            result = await self.agent.process_conversation(messages, debug_mode)
             logger.info(f"Agent response success: {result['success']}")
             
             if result["success"]:
