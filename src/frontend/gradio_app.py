@@ -19,45 +19,31 @@ class GradioInterface:
         self.agent = MenuAgent()
         self.conversation_history: List[Dict[str, str]] = []
     
-    async def chat_response(self, message: str, history: List[List[str]], debug_mode: bool) -> str:
-        """Process chat message and return response"""
+    async def chat_response_stream(self, message: str, history: List[List[str]], debug_mode: bool):
+        """Process chat message and yield real streaming response from agent"""
         logger.info(f"Processing message: {message[:100]}...")
         logger.info(f"printing history in chat response method : {history}")
         try:
             messages = [{"role": msg["role"], "content": msg["content"]} for msg in history]
-            # Process message through agent
-            result = await self.agent.process_conversation(messages, debug_mode)
-            logger.info(f"Agent response success: {result['success']}")
             
-            if result["success"]:
-                response = result["response"]
-                
-                # Add debug info if enabled
-                if debug_mode and result.get("debug_info"):
-                    debug_info = result["debug_info"]
-                    response += f"\n\n--- Debug Info ---\n"
-                    if 'raw_response' in debug_info:
-                        response += f"Raw response: {debug_info['raw_response']}\n"
-                    
-                return response
-            else:
-                return f"Error: {result['response']}"
+            # Stream the response directly from the agent
+            async for partial_response in self.agent.process_conversation_stream(messages, debug_mode):
+                yield partial_response
                 
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}", exc_info=True)
             error_msg = f"I encountered an error: {str(e)}"
             if debug_mode:
                 error_msg += f"\n\nDebug: {str(e)}"
-            return error_msg
+            yield error_msg
     
     def format_examples(self) -> List[str]:
         """Return example queries"""
         return [
-            "What's served in business class on DL30 from ATL on 2025-08-13?",
+            "What's served in business class on DL30 from ATL on 2025-09-15?",
             "Show me first class menu for DL30",
             "Compare business and first class meals on DL30",
-            "Is the Delta menu API working?",
-            "Debug my request: DL30, 2025-08-13, ATL"
+            "Is the Delta menu API working?"
         ]
 
 
@@ -76,6 +62,36 @@ def create_gradio_app() -> gr.Blocks:
         .chat-message {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
+        .message.bot {
+            background-color: #f8f9fa;
+        }
+        .message.user {
+            background-color: #e3f2fd;
+        }
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        .avatar.user {
+            background-color: #28a745;
+        }
+        .avatar.user::before {
+            content: "U";
+        }
+        .avatar.bot::before {
+            content: "🤖";
+        }
+        .message .avatar {
+            margin-right: 8px;
+        }
         """
     ) as app:
         gr.Markdown("""
@@ -90,8 +106,9 @@ def create_gradio_app() -> gr.Blocks:
                 chatbot = gr.Chatbot(
                     height=500,
                     type="messages",
-                    avatar_images=(None, "🤖"),
-                    label="Conversation"
+                    avatar_images=("user_avatar.svg", "bot_avatar.svg"),
+                    label="Conversation",
+                    show_copy_button=True
                 )
                 
                 with gr.Row():
@@ -123,15 +140,20 @@ def create_gradio_app() -> gr.Blocks:
         
         async def bot(history, debug_mode):
             user_message = history[-1]["content"]
-            bot_message = await interface.chat_response(user_message, history, debug_mode)
-            history.append({"role": "assistant", "content": bot_message})
-            return history
+            
+            # Add empty assistant message to show streaming
+            history.append({"role": "assistant", "content": ""})
+            
+            # Stream the response
+            async for partial_response in interface.chat_response_stream(user_message, history[:-1], debug_mode):
+                history[-1]["content"] = partial_response
+                yield history
         
         # Button click handler for examples
         def example_click(example_text):
             return example_text
         
-        # Connect events
+        # Connect events with streaming
         msg_input.submit(user, [msg_input, chatbot], [msg_input, chatbot], queue=False).then(
             bot, [chatbot, debug_mode], chatbot
         )

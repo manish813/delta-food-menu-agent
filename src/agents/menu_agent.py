@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from agents import Agent, Runner, OpenAIChatCompletionsModel, ModelSettings
 from openai import AsyncOpenAI
+from openai.types.responses import ResponseTextDeltaEvent
 
 from ..client.delta_client import DeltaMenuClient
 from ..tools.menu_tools import MenuTools
@@ -158,9 +159,45 @@ assistant: Great! I'll use the "get_menu_by_flight" tool to find the menu for DL
                 "debug_info": {"error": str(e)} if debug else None
             }
 
+    async def process_conversation_stream(self, messages: List[Dict[str, str]], debug: bool = False):
+        """
+        Process a conversation with streaming response using OpenAI Agents SDK
+        
+        Args:
+            messages: List of message dictionaries with 'role' and 'content'
+            debug: Whether to include debug information
+            
+        Yields:
+            Partial responses as they are generated
+        """
+        logger.info(f"Processing conversation with streaming for {len(messages)} messages (debug={debug})")
+        
+        try:
+
+            # Build conversation context
+            conversation = "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])
+            logger.debug(f"Conversation context built - Length: {len(conversation)}")
+            
+            # Use Runner.run_streamed for proper SDK streaming
+            result = Runner.run_streamed(self.agent, conversation)
+            
+            full_response = ""
+            async for event in result.stream_events():
+                # Stream raw LLM text deltas
+                if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                    if event.data.delta:
+                        full_response += event.data.delta
+                        yield full_response
+            
+            logger.info("Streaming conversation processed successfully")
+            
+        except Exception as e:
+            logger.error(f"Error processing streaming conversation: {str(e)}", exc_info=True)
+            yield f"I encountered an error: {str(e)}"
+
     async def process_conversation(self, messages: List[Dict[str, str]], debug: bool = False) -> Dict[str, Any]:
         """
-        Process a conversation with multiple messages
+        Process a conversation with multiple messages (non-streaming)
         
         Args:
             messages: List of message dictionaries with 'role' and 'content'
