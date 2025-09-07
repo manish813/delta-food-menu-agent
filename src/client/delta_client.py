@@ -30,6 +30,7 @@ class DeltaMenuClient:
     }
     
     def __init__(self, oauth_manager: Optional[DeltaOAuthManager] = None):
+        logger.info("Initializing DeltaMenuClient")
         self.client = httpx.AsyncClient(
             headers=self.DEFAULT_HEADERS,
             timeout=30.0
@@ -38,6 +39,8 @@ class DeltaMenuClient:
     
     async def get_menu_by_flight(self, request: MenuQueryRequest) -> FlightMenuResponse | FlightMenuError:
         """Get menu for specific flight"""
+        logger.info(f"Getting menu for flight {request.operating_carrier}{request.flight_number} on {request.departure_date} from {request.departure_airport}")
+        
         try:
             start_time = time.time()
             
@@ -47,6 +50,7 @@ class DeltaMenuClient:
                 'flightNum': request.flight_number,
                 'operatingCarrierCode': request.operating_carrier
             }
+            logger.debug(f"API request params: {params}")
             
             # Generate transaction ID
             import uuid
@@ -54,7 +58,7 @@ class DeltaMenuClient:
             
             headers = self.DEFAULT_HEADERS.copy()
             headers['transactionid'] = transaction_id
-            
+
             response = await self.client.get(
                 f"{self.BASE_URL}/menuByFlight",
                 params=params,
@@ -62,18 +66,22 @@ class DeltaMenuClient:
             )
             
             response_time_ms = int((time.time() - start_time) * 1000)
+            logger.info(f"API response received: {response.status_code} ({response_time_ms}ms)")
             
             if response.status_code == 200:
                 data = response.json()
+                logger.debug(f"Response data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
                 return self._parse_api_response(data, request, response_time_ms)
             else:
                 data = response.json()
+                logger.warning(f"API returned non-200 status: {response.status_code} - {data}")
                 return FlightMenuError(
                     success=False,
                     error_message=f"API returned {data}",
                 )
                 
         except httpx.TimeoutException:
+            logger.error(f"API request timed out for flight {request.operating_carrier}{request.flight_number}")
             return FlightMenuResponse(
                 operating_carrier_code=request.operating_carrier,
                 flight_num=request.flight_number,
@@ -84,6 +92,7 @@ class DeltaMenuClient:
                 api_response_time_ms=30000
             )
         except Exception as e:
+            logger.error(f"Unexpected error in get_menu_by_flight: {str(e)}", exc_info=True)
             return FlightMenuError(
                 success=False,
                 error_message=str(e)
@@ -91,11 +100,14 @@ class DeltaMenuClient:
     
     def _parse_api_response(self, data: Dict[str, Any], request: MenuQueryRequest, response_time_ms: int) -> FlightMenuResponse | FlightMenuError:
         """Parse the Delta API response into our Pydantic models"""
+        logger.debug("Parsing API response")
+        
         try:
             if not data or not data.get('flightMenus'):
                 error_message = "Empty or invalid response from API"
                 if isinstance(data, dict) and 'error' in data:
                     error_message = data['error']
+                logger.warning(f"Invalid API response: {error_message}")
                 return FlightMenuResponse(
                     operating_carrier_code=request.operating_carrier,
                     flight_num=request.flight_number,
@@ -107,6 +119,7 @@ class DeltaMenuClient:
                 )
 
             flight_menu_data = data['flightMenus'][0]
+            logger.debug(f"Found flight menu data with keys: {list(flight_menu_data.keys())}")
 
             flight_menu_response = FlightMenuResponse.model_validate({
                 **flight_menu_data,
@@ -114,9 +127,11 @@ class DeltaMenuClient:
                 'error_message': None,
                 'api_response_time_ms': response_time_ms
             })
+            logger.info(f"Successfully parsed menu response for {request.operating_carrier}{request.flight_number}")
             return flight_menu_response
 
         except Exception as e:
+            logger.error(f"Error parsing API response: {str(e)}", exc_info=True)
             return FlightMenuError(
                 success=False,
                 error_message=f"An unexpected error occurred during parsing: {str(e)}",
@@ -279,6 +294,8 @@ class DeltaMenuClient:
 
     async def close(self):
         """Close the HTTP client"""
+        logger.info("Closing DeltaMenuClient")
         await self.client.aclose()
         if hasattr(self, 'oauth_manager'):
             await self.oauth_manager.close()
+        logger.debug("DeltaMenuClient closed")
