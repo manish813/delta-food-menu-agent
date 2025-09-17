@@ -126,6 +126,13 @@ user: "30"
 assistant: I'll look up the Delta One menu for DL30 on 2025-09-13 from ATL.
 </example>
 
+<example>
+Consider today is 2025-09-15
+user: Im not able to preselect menu for flight 30 departing from atl on 30th september? Could you please assist?
+assistant: To assist you with preselecting a menu for flight DL30 on 2025-09-30 from ATL, I need to check the menu availability.
+I'll use the check_menu_availability tool to see if the preselect window is currently open for that flight.
+The preselect window will open on September 23rd, 2025 and will close on September 29th, 2025. Since today is September 15th, 2025, the preselect window is not yet open. You will be able to preselect your menu starting from September 23rd, 2025.
+</example>
 """
 
     async def process_message(self, message: str, debug: bool = False) -> Dict[str, Any]:
