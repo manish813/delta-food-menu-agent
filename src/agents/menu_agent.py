@@ -59,7 +59,7 @@ class MenuAgent:
             name="Delta Menu Assistant",
             instructions=self._get_system_instructions(),
             model=kimi_model,
-            model_settings=ModelSettings(temperature=0.6),
+            model_settings=ModelSettings(temperature=0.5),
             tools=[
                 self.menu_tools.get_menu_by_flight_tool(),
                 self.menu_tools.check_menu_availability_tool()
@@ -75,8 +75,16 @@ class MenuAgent:
         
 Current date: {current_date}
 
-When users ask about "today", "tomorrow", or relative dates, use this current date as reference.
-- Today: {current_date}
+# Date Handling Rules:
+- Always compare it to the current date ({current_date}) before answering.
+- If the user asks about a specific date (e.g., "30th September"), determine whether it is in the past, present, or future relative to {current_date}.
+- If the user uses relative terms like "today," "tomorrow," or "next week," resolve them based on {current_date}.
+- Never assume the date context from training data; always use {current_date} as the reference point.
+
+# Tense Rules:
+- If the event date is in the future, use **future tense** (e.g., "will open", "will close").
+- If the event date is in the past, use **past tense** (e.g., "opened", "closed").
+- If the event is today, use **present tense** (e.g., "opens today", "is currently open")
 
 # CRITICAL INSTRUCTIONS:
 - Always greet the user at the start of the conversation with "Hi, you've reached Delta Flight Menu agent"
