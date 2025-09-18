@@ -29,19 +29,24 @@ class MenuTools:
                 departure_date: str,
                 flight_number: int,
                 departure_airport: str,
-                operating_carrier: str = "DL"
+                operating_carrier: str = "DL",
+                cabin_codes: str = None
         ) -> Dict[str, Any]:
             """
-            Get complete menu for a specific flight across all cabin classes.
-            
+           Get complete flight menu information for all cabin classes (First, Business, Economy)
+           on a specific Delta flight. Returns detailed menu items, meal options, and service details
+           for the requested flight date and route. Use this when customers ask about 'what food is served'
+           or 'menu options' for a specific flight.
+
             Args:
                 departure_date: Flight departure date in YYYY-MM-DD format
-                flight_number: Flight number (e.g., 30 for DL30)
-                departure_airport: Departure airport code (e.g., ATL, LAX, JFK)
+                flight_number: Flight number without carrier prefix (e.g., 30 for DL30)
+                departure_airport: Departure airport code. 3 letter IATA airport code (e.g., ATL, LAX, JFK)
                 operating_carrier: Airline carrier code (default: DL)
+                cabin_codes: Optional comma-separated cabin codes to filter results (e.g., "F,C" for Delta Premium Select/First and Delta One/Business only. C=Delta One/Business, F=Delta Premium Select/First, W=IMC/Comfort, Y=IMC/Coach)
 
             Returns:
-                Structured response with flight info and cabin menus
+                Structured response with flight info and filtered cabin menus
             """
             logger.info(f"TOOL: get_menu_by_flight called - {operating_carrier}{flight_number} on {departure_date} from {departure_airport}")
             
@@ -68,6 +73,16 @@ class MenuTools:
                 logger.debug("Calling client.get_menu_by_flight")
                 response = await self.client.get_menu_by_flight(request)
                 logger.debug(f"Client response success: {response.success}")
+                
+                # Filter menu services by cabin codes if specified
+                filtered_menu_services = response.menu_services
+                if cabin_codes and response.menu_services:
+                    requested_cabins = [code.strip().upper() for code in cabin_codes.split(',')]
+                    filtered_menu_services = [
+                        service for service in response.menu_services 
+                        if service.cabin_type_code and service.cabin_type_code.upper() in requested_cabins
+                    ]
+                    logger.debug(f"Filtered menu services from {len(response.menu_services)} to {len(filtered_menu_services)} for cabins: {requested_cabins}")
 
                 # Format response for readability
                 flight_info = FlightInfo(
@@ -84,11 +99,12 @@ class MenuTools:
                     flight_info=flight_info,
                     success=response.success,
                     error_message=response.error_message,
-                    menu_services=response.menu_services,
+                    menu_services=filtered_menu_services,
                     metadata={"api_response_time_ms": response.api_response_time_ms}
                 ).model_dump(exclude_none=True)
                 
-                logger.info(f"TOOL: get_menu_by_flight completed successfully - {len(response.menu_services or [])} menu services found")
+                logger.info(f"TOOL: get_menu_by_flight completed successfully - {len(filtered_menu_services or [])} menu services returned")
+                logger.info(f"Returning get menu by flight result: {result}")
                 return result
 
             except Exception as e:
