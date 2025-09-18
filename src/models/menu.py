@@ -23,26 +23,26 @@ class MenuServicePreferences(BaseModel):
 class MenuItem(BaseModel):
     """Individual menu item with details"""
     model_config = ConfigDict(alias_generator=to_camel)
-    menu_item_id: Optional[int] = None
-    product_id: Optional[str] = None
-    menu_rrd_product_id: Optional[str] = None
-    menu_item_type_cd: Optional[str] = None
+    # menu_item_id: Optional[int] = None
+    # product_id: Optional[str] = None
+    # menu_rrd_product_id: Optional[str] = None
+    # menu_item_type_cd: Optional[str] = None
     menu_item_type_name: Optional[str] = Field(None, examples=["Bread", "Appetizer", "Main Course", "Wines"])
     menu_item_type_disp_ord_seq_num: Optional[int] = None
     menu_item_disp_ord_seq_num: Optional[int] = None
     menu_item_desc: Optional[str] = None
     menu_item_additional_desc: Optional[str] = None
-    menu_item_offer_type_code: Optional[str] = None
+    # menu_item_offer_type_code: Optional[str] = None
     menu_item_offer_type_desc: Optional[str] = None
     menu_item_offer_info: Optional[str] = None
-    menu_item_image_url_addr: Optional[str] = None
+    # menu_item_image_url_addr: Optional[str] = None
     menu_item_dietary_asgmts: List[DigitalMenuItemDietaryAsgmt] = Field(default_factory=list)
-    menu_item_notes_text: Optional[str] = None
+    # menu_item_notes_text: Optional[str] = None
     ssr_code: Optional[str] = Field(None, description="Special Service Request code")
     pre_select_meal: Optional[bool] = Field(None, description="Whether meal can be pre-selected")
-    paxia_recipe_spec_code: Optional[str] = None
-    menu_item_effective_date: Optional[str] = None
-    menu_item_expiry_date: Optional[str] = None
+    # paxia_recipe_spec_code: Optional[str] = None
+    # menu_item_effective_date: Optional[str] = None
+    # menu_item_expiry_date: Optional[str] = None
 
 
 
@@ -50,10 +50,10 @@ class MenuItem(BaseModel):
 class Menu(BaseModel):
     """Individual menu within a cabin (e.g., Lunch, Dinner, Snacks, Beverages)"""
     model_config = ConfigDict(alias_generator=to_camel)
-    menu_id: Optional[int] = None
-    menu_course_type_code: Optional[str] = None
+    # menu_id: Optional[int] = None
+    # menu_course_type_code: Optional[str] = None
     menu_course_type_desc: Optional[str] = Field(None, examples=["Meal", "Snacks", "Beverages"])
-    menu_service_type_code: Optional[str] = None
+    # menu_service_type_code: Optional[str] = None
     menu_service_type_desc: Optional[str] = Field(None, examples=["LATE", "Breakfast", "Lunch", "Dinner", "Brunch", "Alcoholic Beverages",
                                                                   "Non Alcoholic Beverages", "Pre-Arrival", "Complimentary Snacks",
                                                                   "Complimentary Premium Snacks", "Complimentary Premium Snack Basket",
@@ -64,19 +64,19 @@ class Menu(BaseModel):
                                                                   "First Service Late Night Support", "Premium Snacks", "First Service AM",
                                                                   "First Service PM", "Pre Arrival PM", "First Service Late Night",
                                                                   "Pre Arrival Lighter/Later", "Mid Flight"])
-    menu_type_code: Optional[str] = None
+    # menu_type_code: Optional[str] = None
     menu_type_desc: Optional[str] = Field(None, examples=["Western Menu", "Japanese Menu", "Chinese Menu", "Korean Menu", "Skip Meal",])
     menu_type_disp_ord_seq_num: Optional[int] = None
-    menu_title_text: Optional[str] = None
-    menu_sub_title_text: Optional[str] = None
+    # menu_title_text: Optional[str] = None
+    # menu_sub_title_text: Optional[str] = None
     menu_disp_ord_seq_num: Optional[int] = None
     menu_notes_text: Optional[str] = None
     menu_manager_name: Optional[str] = None
-    menu_image_url_addr: Optional[str] = None
-    menu_effective_date: Optional[str] = None
-    menu_expiry_date: Optional[str] = None
+    # menu_image_url_addr: Optional[str] = None
+    # menu_effective_date: Optional[str] = None
+    # menu_expiry_date: Optional[str] = None
     pre_select: Optional[str] = None
-    paxia_menu_spec_code: List[str] = Field(default_factory=list)
+    # paxia_menu_spec_code: List[str] = Field(default_factory=list)
     menu_service_preferences: List[MenuServicePreferences] = Field(default_factory=list)
     menu_items: List[MenuItem] = Field(default_factory=list)
 
@@ -92,7 +92,7 @@ class MenuServiceLanguage(BaseModel):
 class MenuService(BaseModel):
     """Service-level data for a specific cabin class, containing multiple menus"""
     model_config = ConfigDict(alias_generator=to_camel)
-    menu_service_id: Optional[int] = None
+    # menu_service_id: Optional[int] = None
     menu_service_desc: Optional[str] = None
     cabin_type_code: Optional[str] = Field(None, description="C=Delta One/Business, F=Delta Premium Select/First, W=IMC/Comfort, Y=IMC/Coach")
     cabin_type_desc: Optional[str] = Field(None, examples=["Delta One", "Delta Premium Select", "Main Cabin"])
@@ -101,9 +101,9 @@ class MenuService(BaseModel):
     cabin_preselect_window_end_utc_ts: Optional[str] = None
     digital_menu_avl: Optional[bool] = Field(None, description="Whether digital menu is available")
     menu_service_meal_time_window: Optional[str] = Field(None, description="When meal service occurs during flight")
-    cabin_welcome_header: Optional[str] = None
-    cabin_welcome_title: Optional[str] = None
-    cabin_welcome_message: Optional[str] = None
+    # cabin_welcome_header: Optional[str] = None
+    # cabin_welcome_title: Optional[str] = None
+    # cabin_welcome_message: Optional[str] = None
     primary_menu_service_type_desc: Optional[str] = None
     menu_service_languages: Optional[List[MenuServiceLanguage]] = None
     menus: List[Menu] = Field(default_factory=list)
@@ -117,7 +117,7 @@ class FlightMenuResponse(BaseModel):
     flight_departure_date: str = Field(..., examples=["2025-08-13"])
     flight_departure_airport_code: str = Field(..., examples=["ATL", "LAX", "JFK"])
     flight_arrival_date: Optional[str] = Field(None, description="Format: YYYY-MM-DD", examples=["2025-08-13"])
-    flight_arrival_airport_code: Optional[str] = Field(None, examples=["ATL", "LAX", "JFK"])
+    flight_arrival_airport_code: Optional[str] = Field(None, description="IATA standard Airport codes" ,examples=["ATL", "LAX", "JFK"])
     segment_id: Optional[str] = None
     flight_offer_expiration_utc_ts: Optional[str] = None
     menu_services: List[MenuService] = Field(default_factory=list, description="Menu services by cabin class")
