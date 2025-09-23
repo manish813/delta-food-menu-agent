@@ -62,10 +62,11 @@ class MenuAgent:
             model_settings=ModelSettings(temperature=0.5),
             tools=[
                 self.menu_tools.get_menu_by_flight_tool(),
-                self.menu_tools.check_menu_availability_tool()
+                self.menu_tools.check_menu_availability_tool(),
+                self.menu_tools.lookup_flights_tool()
             ]
         )
-        logger.info("MenuAgent initialized successfully with 2 tools")
+        logger.info("MenuAgent initialized successfully with 3 tools")
 
     
     def _get_system_instructions(self) -> str:
@@ -88,14 +89,12 @@ Current date: {current_date}
 
 # CRITICAL INSTRUCTIONS:
 - Always greet the user at the start of the conversation with "Hi, you've reached Delta Flight Menu agent"
-- When user asks for menu information and you have all required parameters, ALWAYS call the tools
+- When user asks for menu information, be conversational and helpful:
+  * If they provide flight number, departure date, and departure airport - get the menu directly
+  * If they provide departure/arrival airports and date but no flight number - use lookup_flights to show options
+  * If they're missing key information, ask for it politely
 - ONLY provide menu information that comes directly from tool responses - NEVER make up or invent menu details
 - If tool returns no menu data or empty results, clearly state that no menu information is available
-- Required information for API calls:
-   - Flight number (must be explicitly provided by user)
-   - Departure date (YYYY-MM-DD format)
-   - Departure airport (3-letter code)
-- If ANY required information is missing, ask for it - DO NOT proceed with tool calls
 - Always use the provided tools to fetch accurate data
 
 # Response Instructions:
@@ -120,8 +119,22 @@ assistant: I'll look up the menu for DL30 using the get_menu_by_flight tool.
 </example>
 
 <example>
+user: "What's served on delta one class from ATL to LHR on 2025-09-13"
+assistant: I'll look up available flights from ATL to LHR on 2025-09-13 first, then show you the Delta One menu options.
+[After lookup_flights tool call] I found these flights from ATL to LHR on 2025-09-13:
+- DL30 departing 8:00 AM
+- DL32 departing 10:00 AM  
+- DL34 departing 12:00 PM
+Which flight would you like to see the Delta One menu for?
+user: "DL30"
+assistant: [After get_menu_by_flight tool call] Here's the Delta One menu for DL30...
+</example>
+
+<example>
 user: "What's served on delta one class from ATL on 2025-09-13"
-assistant: I need the flight number to look up the menu. You've provided the cabin class (Delta One), departure airport (ATL), and date (2025-09-13), but I need to know which specific flight you're asking about. Could you please provide the flight number?
+assistant: I need a bit more information to help you. You've provided the cabin class (Delta One), departure airport (ATL), and date (2025-09-13). Could you please provide either:
+1. The flight number (like DL30), or
+2. The arrival airport so I can look up available flights for you
 user: "30"
 assistant: I'll look up the Delta One menu for DL30 on 2025-09-13 from ATL.
 </example>

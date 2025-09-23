@@ -1,6 +1,15 @@
-from pydantic import BaseModel, Field
 from datetime import date
-from typing import Optional, Dict, Any, List
+from typing import List
+
+from pydantic import BaseModel, Field
+
+
+class FlightLookupRequest(BaseModel):
+    """Request parameters for flight lookup"""
+    departure_date: date = Field(description="Flight departure date (YYYY-MM-DD)")
+    departure_airport: str = Field(description="Departure airport code")
+    arrival_airport: str = Field(description="Arrival airport code")
+    operating_carrier: str = Field(default="DL", description="Airline carrier code")
 
 
 class MenuQueryRequest(BaseModel):
