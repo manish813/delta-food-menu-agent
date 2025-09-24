@@ -46,7 +46,7 @@ class MenuTools:
                 flight_number: Optional flight number without carrier prefix (e.g., 30 for DL30)
                 arrival_airport: Optional arrival airport code (required if flight_number not provided)
                 operating_carrier: Airline carrier code (default: DL)
-                cabin_codes: Optional comma-separated cabin codes to filter results (C=Business, F=First, W=Comfort, Y=Coach)
+                cabin_codes: Optional comma-separated cabin codes to filter results (C=Delta One/Business, F=Delta Premium Select/First, W=Comfort+, Y=Main Cabin/Economy)
 
             Returns:
                 Flight menu information or flight options for selection
