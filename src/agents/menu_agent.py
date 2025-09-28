@@ -271,7 +271,6 @@ The preselect window will open on September 23rd, 2025 and will close on Septemb
         logger.info(f"Processing conversation with streaming for {len(messages)} messages (debug={debug})")
         
         try:
-
             # Build conversation context
             conversation = "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])
             logger.debug(f"Conversation context built - Length: {len(conversation)}")
@@ -280,12 +279,27 @@ The preselect window will open on September 23rd, 2025 and will close on Septemb
             result = Runner.run_streamed(self.agent, conversation)
             
             full_response = ""
+            temp_display = ""
             async for event in result.stream_events():
-                # Stream raw LLM text deltas
+                # Handle different event types
                 if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                    # Stream raw LLM text deltas
                     if event.data.delta:
                         full_response += event.data.delta
-                        yield full_response
+                        yield full_response + temp_display
+                elif event.type == "run_item_stream_event":
+                    # Handle tool calls and outputs - show temporarily but don't add to final response
+                    if event.item.type == "tool_call_item":
+                        temp_display = "\n\n🔧 Calling tool...\n\n"
+                        yield full_response + temp_display
+                    elif event.item.type == "tool_call_output_item":
+                        temp_display = "\n✅ Tool completed\n\n"
+                        yield full_response + temp_display
+                        # Clear temp display after tool completion
+                        temp_display = ""
+            
+            # Final yield with just the actual response content
+            yield full_response
             
             logger.info("Streaming conversation processed successfully")
             

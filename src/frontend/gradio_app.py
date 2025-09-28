@@ -40,10 +40,9 @@ class GradioInterface:
     def format_examples(self) -> List[str]:
         """Return example queries"""
         return [
-            "What's served in business class on DL30 from ATL on 2025-09-15?",
+            "What's served in delta one class on DL30 from ATL on 2025-09-30?",
             "Show me first class menu for DL30",
-            "Compare business and first class meals on DL30",
-            "Is the Delta menu API working?"
+            "Compare business and first class meals on DL30"
         ]
 
 
@@ -170,9 +169,8 @@ def create_gradio_app() -> gr.Blocks:
         
         gr.Markdown("""
         ### Usage Tips:
-        - **Flight Info**: Include flight number, date (YYYY-MM-DD), and departure airport
-        - **Cabin Classes**: F=First, C=Business, Y=Economy
-        - **Debug**: Enable debug mode for detailed API information
+        - **Flight Info**: Include flight number, date (YYYY-MM-DD), departure airport and arrival Airport
+        - **Cabin Classes**: F=Delta Premium Select, C=Delta One, W=Comfort, Y=Coach
         - **Examples**: Use quick buttons for common queries
         """)
     
