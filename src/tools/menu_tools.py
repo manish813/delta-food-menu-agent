@@ -39,6 +39,7 @@ class MenuTools:
            will lookup available flights for the route and ask user to select. Returns detailed menu items,
            meal options, and service details. Use this when customers ask about 'what food is served'
            or 'menu options' for flights.
+           Never answer 'no menus available' without calling this tool first.
 
             Args:
                 departure_date: Flight departure date in YYYY-MM-DD format
