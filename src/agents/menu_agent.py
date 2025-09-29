@@ -59,7 +59,7 @@ class MenuAgent:
             name="Delta Menu Assistant",
             instructions=self._get_system_instructions(),
             model=kimi_model,
-            model_settings=ModelSettings(temperature=0.5),
+            model_settings=ModelSettings(temperature=0.2, include_usage=True),
             tools=[
                 self.menu_tools.get_menu_by_flight_tool(),
                 self.menu_tools.check_menu_availability_tool(),
@@ -300,8 +300,13 @@ The preselect window will open on September 23rd, 2025 and will close on Septemb
             
             # Final yield with just the actual response content
             yield full_response
-            
             logger.info("Streaming conversation processed successfully")
+            usage = result.context_wrapper.usage
+            logger.info(f"Usage: {usage.total_tokens} tokens")
+            logger.info(f"Requests: {usage.requests}")
+            logger.info(f"Input tokens: {usage.input_tokens}")
+            logger.info(f"Output tokens: {usage.output_tokens}")
+            logger.info(f"Total tokens: {usage.total_tokens}")
             
         except Exception as e:
             logger.error(f"Error processing streaming conversation: {str(e)}", exc_info=True)

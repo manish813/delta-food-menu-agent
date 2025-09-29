@@ -28,8 +28,8 @@ class MenuItem(BaseModel):
     # menu_rrd_product_id: Optional[str] = None
     # menu_item_type_cd: Optional[str] = None
     menu_item_type_name: Optional[str] = Field(None, examples=["Bread", "Appetizer", "Main Course", "Wines"])
-    menu_item_type_disp_ord_seq_num: Optional[int] = None
-    menu_item_disp_ord_seq_num: Optional[int] = None
+    # menu_item_type_disp_ord_seq_num: Optional[int] = None
+    # menu_item_disp_ord_seq_num: Optional[int] = None
     menu_item_desc: Optional[str] = None
     menu_item_additional_desc: Optional[str] = None
     # menu_item_offer_type_code: Optional[str] = None
