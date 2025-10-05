@@ -10,8 +10,33 @@
 *.iml
 *.ipr
 
-#Environment
+# Environment
 .env
+
+# Logs
+*.log
+gradio_app.log
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+menu_conversations.db*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# UV
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
 
 
 

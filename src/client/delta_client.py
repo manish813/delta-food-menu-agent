@@ -1,12 +1,18 @@
-import httpx
-from typing import Dict, Any, Optional
 import time
 from datetime import date
+from typing import Dict, Any, Optional
 
-from ..models.menu import FlightMenuResponse, MenuAvailabilityResponse, \
-    FlightMenuAvailability, CabinAvailability, FlightLeg, FlightMenuError
-from ..models.requests import MenuQueryRequest, FlightRequestValidation, ValidationParameters, ValidationNextSteps
+import httpx
+
 from .oauth_manager import DeltaOAuthManager
+from ..data.ssr_codes import get_ssr_description
+from ..database.connection_pool import initialize_db_pool, close_db_pool
+from ..database.flight_repository import FlightRepository
+from ..models.menu import FlightMenuResponse, MenuAvailabilityResponse, \
+    FlightLeg, FlightMenuError
+from ..models.requests import MenuQueryRequest, FlightRequestValidation, ValidationParameters, ValidationNextSteps, \
+    FlightLookupRequest
+from ..models.responses import FlightLookupResponse
 from ..utils.logging_config import setup_logging, get_logger
 
 # Setup logging
@@ -36,6 +42,8 @@ class DeltaMenuClient:
             timeout=30.0
         )
         self.oauth_manager = oauth_manager or DeltaOAuthManager()
+        self.flight_repository = FlightRepository()
+        self._db_initialized = False
     
     async def get_menu_by_flight(self, request: MenuQueryRequest) -> FlightMenuResponse | FlightMenuError:
         """Get menu for specific flight"""
@@ -121,6 +129,9 @@ class DeltaMenuClient:
             flight_menu_data = data['flightMenus'][0]
             logger.debug(f"Found flight menu data with keys: {list(flight_menu_data.keys())}")
 
+            # Add SSR descriptions to menu items
+            self._add_ssr_descriptions(flight_menu_data)
+            
             flight_menu_response = FlightMenuResponse.model_validate({
                 **flight_menu_data,
                 'success': True,
@@ -136,6 +147,20 @@ class DeltaMenuClient:
                 success=False,
                 error_message=f"An unexpected error occurred during parsing: {str(e)}",
             )
+    
+    def _add_ssr_descriptions(self, flight_menu_data: Dict[str, Any]):
+        """Add SSR code descriptions to menu items"""
+        for menu_service in flight_menu_data.get('menuServices', []):
+            for menu in menu_service.get('menus', []):
+                for menu_item in menu.get('menuItems', []):
+                    ssr_code = menu_item.get('ssrCode')
+                    if ssr_code:
+                        description = get_ssr_description(ssr_code)
+                        dietary_asgmts = menu_item.get('menuItemDietaryAsgmts')
+
+                        if not dietary_asgmts:
+                            new_asgmt = {'menuItemDietaryDesc': description}
+                            menu_item['menuItemDietaryAsgmts'] = [new_asgmt]
 
 
     def validate_flight_request(self, request: MenuQueryRequest) -> FlightRequestValidation:
@@ -292,10 +317,50 @@ class DeltaMenuClient:
                 api_response_time_ms=response_time_ms
             )
 
+    async def _ensure_db_initialized(self):
+        """Initialize database pool if not already done"""
+        if not self._db_initialized:
+            await initialize_db_pool()
+            self._db_initialized = True
+    
+    async def lookup_flights(self, request: FlightLookupRequest) -> FlightLookupResponse:
+        """Lookup flight numbers by route and date using Oracle database"""
+        logger.info(f"Looking up flights from {request.departure_airport} to {request.arrival_airport} on {request.departure_date}")
+        
+        try:
+            await self._ensure_db_initialized()
+            return await self.flight_repository.lookup_flights(request)
+            
+        except ValueError as e:
+            # Handle missing credentials gracefully
+            logger.error(f"Database configuration error: {str(e)}")
+            return FlightLookupResponse(
+                departure_airport=request.departure_airport,
+                arrival_airport=request.arrival_airport,
+                departure_date=request.departure_date.isoformat(),
+                operating_carrier=request.operating_carrier,
+                flights=[],
+                success=False,
+                error_message=f"Database configuration error: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Error looking up flights: {str(e)}", exc_info=True)
+            return FlightLookupResponse(
+                departure_airport=request.departure_airport,
+                arrival_airport=request.arrival_airport,
+                departure_date=request.departure_date.isoformat(),
+                operating_carrier=request.operating_carrier,
+                flights=[],
+                success=False,
+                error_message=str(e)
+            )
+    
     async def close(self):
-        """Close the HTTP client"""
+        """Close the HTTP client and database pool"""
         logger.info("Closing DeltaMenuClient")
         await self.client.aclose()
         if hasattr(self, 'oauth_manager'):
             await self.oauth_manager.close()
+        if self._db_initialized:
+            await close_db_pool()
         logger.debug("DeltaMenuClient closed")

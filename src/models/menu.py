@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
-from datetime import date
+
+from pydantic import BaseModel, Field, ConfigDict
 
 from src.utils.utils import to_camel
 
@@ -8,8 +8,8 @@ from src.utils.utils import to_camel
 class DigitalMenuItemDietaryAsgmt(BaseModel):
     """Menu item dietary assignment"""
     model_config = ConfigDict(alias_generator=to_camel)
-    menu_item_dietary_code: Optional[str] = None
-    menu_item_dietary_desc: Optional[str] = Field(None, examples=["Vegetarian", "Gluten-free", "Dairy-free", "Nut-free"])
+    # menu_item_dietary_code: Optional[str] = None
+    menu_item_dietary_desc: Optional[str] = Field(None, examples=["Vegetarian", "Gluten-free Meal", "Vegan" ])
 
 
 class MenuServicePreferences(BaseModel):
@@ -28,8 +28,8 @@ class MenuItem(BaseModel):
     # menu_rrd_product_id: Optional[str] = None
     # menu_item_type_cd: Optional[str] = None
     menu_item_type_name: Optional[str] = Field(None, examples=["Bread", "Appetizer", "Main Course", "Wines"])
-    menu_item_type_disp_ord_seq_num: Optional[int] = None
-    menu_item_disp_ord_seq_num: Optional[int] = None
+    # menu_item_type_disp_ord_seq_num: Optional[int] = None
+    # menu_item_disp_ord_seq_num: Optional[int] = None
     menu_item_desc: Optional[str] = None
     menu_item_additional_desc: Optional[str] = None
     # menu_item_offer_type_code: Optional[str] = None

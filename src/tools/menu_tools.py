@@ -1,10 +1,11 @@
-from typing import List, Dict, Any
 from datetime import date
+from typing import Dict, Any
 
 from agents import function_tool
+
 from ..client.delta_client import DeltaMenuClient
-from ..models.requests import MenuQueryRequest, FlightRequestValidation
-from ..models.menu import FlightMenuResponse,  FlightLeg
+from ..models.menu import FlightLeg
+from ..models.requests import MenuQueryRequest, FlightLookupRequest
 from ..models.responses import (
     CompleteMenuResponse,
     FlightInfo,
@@ -25,36 +26,78 @@ class MenuTools:
         """Create the menu function tool"""
 
         @function_tool
-        async def get_menu_by_flight(
+        async def get_flight_menu(
                 departure_date: str,
-                flight_number: int,
                 departure_airport: str,
+                flight_number: int = None,
+                arrival_airport: str = None,
                 operating_carrier: str = "DL",
                 cabin_codes: str = None
         ) -> Dict[str, Any]:
             """
-           Get complete flight menu information for all cabin classes (First, Business, Economy)
-           on a specific Delta flight. Returns detailed menu items, meal options, and service details
-           for the requested flight date and route. Use this when customers ask about 'what food is served'
-           or 'menu options' for a specific flight.
+           Get complete flight menu information for Delta flights. If flight_number is not provided,
+           will lookup available flights for the route and ask user to select. Returns detailed menu items,
+           meal options, and service details. Use this when customers ask about 'what food is served'
+           or 'menu options' for flights.
+           Never answer 'no menus available' without calling this tool first.
 
             Args:
                 departure_date: Flight departure date in YYYY-MM-DD format
-                flight_number: Flight number without carrier prefix (e.g., 30 for DL30)
-                departure_airport: Departure airport code. 3 letter IATA airport code (e.g., ATL, LAX, JFK)
+                departure_airport: Departure airport code (e.g., ATL, LAX, JFK)
+                flight_number: Optional flight number without carrier prefix (e.g., 30 for DL30)
+                arrival_airport: Optional arrival airport code (required if flight_number not provided)
                 operating_carrier: Airline carrier code (default: DL)
-                cabin_codes: Optional comma-separated cabin codes to filter results (e.g., "F,C" for Delta Premium Select/First and Delta One/Business only. C=Delta One/Business, F=Delta Premium Select/First, W=IMC/Comfort, Y=IMC/Coach)
+                cabin_codes: Optional comma-separated cabin codes to filter results (C=Delta One/Business, F=Delta Premium Select/First, W=Comfort+, Y=Main Cabin/Economy)
 
             Returns:
-                Structured response with flight info and filtered cabin menus
+                Flight menu information or flight options for selection
             """
-            logger.info(f"TOOL: get_menu_by_flight called - {operating_carrier}{flight_number} on {departure_date} from {departure_airport}")
+            logger.info(f"TOOL: get_menu_by_flight called - {operating_carrier}{flight_number or 'TBD'} on {departure_date} from {departure_airport} to {arrival_airport or 'TBD'}")
             
             try:
-                # Create MenuQueryRequest from individual parameters
                 dep_date = date.fromisoformat(departure_date)
                 logger.debug(f"Parsed departure date: {dep_date}")
                 
+                # If no flight number provided, lookup flights by route
+                if flight_number is None:
+                    if not arrival_airport:
+                        return {
+                            "query_type": "flight_lookup",
+                            "success": False,
+                            "error_message": "arrival_airport is required when flight_number is not provided"
+                        }
+                    
+                    lookup_request = FlightLookupRequest(
+                        departure_date=dep_date,
+                        departure_airport=departure_airport,
+                        arrival_airport=arrival_airport,
+                        operating_carrier=operating_carrier
+                    )
+                    
+                    lookup_response = await self.client.lookup_flights(lookup_request)
+                    
+                    if not lookup_response.success or not lookup_response.flights:
+                        return {
+                            "query_type": "flight_lookup",
+                            "success": False,
+                            "error_message": lookup_response.error_message or "No flights found for this route"
+                        }
+                    
+                    # Return flight options for user selection
+                    return {
+                        "query_type": "flight_selection",
+                        "success": True,
+                        "message": f"Found {len(lookup_response.flights)} flights from {departure_airport} to {arrival_airport} on {departure_date}. Please select a flight:",
+                        "flights": lookup_response.flights,
+                        "route_info": {
+                            "departure_airport": departure_airport,
+                            "arrival_airport": arrival_airport,
+                            "departure_date": departure_date,
+                            "operating_carrier": operating_carrier
+                        }
+                    }
+                
+                # Proceed with menu query using provided flight number
                 request = MenuQueryRequest(
                     departure_date=dep_date,
                     flight_number=flight_number,
@@ -115,7 +158,7 @@ class MenuTools:
                     error_message=str(e)
                 ).model_dump(exclude_none=True)
         
-        return get_menu_by_flight
+        return get_flight_menu
 
     def check_menu_availability_tool(self):
         """Create the menu availability function tool"""
@@ -162,3 +205,64 @@ class MenuTools:
                     "error_message": str(e)
                 }
         return check_menu_availability
+    
+    def lookup_flights_tool(self):
+        """Create the flight lookup function tool"""
+
+        @function_tool
+        async def lookup_flights(
+                departure_date: str,
+                departure_airport: str,
+                arrival_airport: str,
+                operating_carrier: str = "DL"
+        ) -> Dict[str, Any]:
+            """
+            Find available flight numbers for a specific route and date. Use this when users
+            provide departure/arrival airports and date but no flight number.
+
+            Args:
+                departure_date: Flight departure date in YYYY-MM-DD format
+                departure_airport: Departure airport code (e.g., ATL, LAX, JFK)
+                arrival_airport: Arrival airport code (e.g., LHR, CDG, NRT)
+                operating_carrier: Airline carrier code (default: DL)
+
+            Returns:
+                List of available flights for the route and date
+            """
+            logger.info(f"TOOL: lookup_flights called - {departure_airport} to {arrival_airport} on {departure_date}")
+
+            try:
+                dep_date = date.fromisoformat(departure_date)
+                
+                lookup_request = FlightLookupRequest(
+                    departure_date=dep_date,
+                    departure_airport=departure_airport,
+                    arrival_airport=arrival_airport,
+                    operating_carrier=operating_carrier
+                )
+                
+                response = await self.client.lookup_flights(lookup_request)
+                logger.info(f"TOOL: lookup_flights completed - Found {len(response.flights)} flights")
+                
+                return {
+                    "query_type": "flight_lookup",
+                    "success": response.success,
+                    "error_message": response.error_message,
+                    "route_info": {
+                        "departure_airport": departure_airport,
+                        "arrival_airport": arrival_airport,
+                        "departure_date": departure_date,
+                        "operating_carrier": operating_carrier
+                    },
+                    "flights": response.flights
+                }
+
+            except Exception as e:
+                logger.error(f"TOOL: lookup_flights failed - {str(e)}", exc_info=True)
+                return {
+                    "query_type": "flight_lookup",
+                    "success": False,
+                    "error_message": str(e)
+                }
+        
+        return lookup_flights
