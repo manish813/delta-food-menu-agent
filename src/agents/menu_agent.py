@@ -128,25 +128,9 @@ class MenuAgent:
     async def process_message_stream(self, message: str, session_id: str = "default"):
         """Process a message with streaming using session-based context management"""
         try:
-            logger.info(f"Processing streaming message with session {session_id}: {message[:100]}...")
-            
-            # Get or create session
             session = self.get_session(session_id)
-            
-            # Log existing session context before processing
-            existing_items = await session.get_items()
-            logger.info(f"Session {session_id} - Streaming existing context items: {len(existing_items)} -------------")
-            for i, item in enumerate(existing_items):  # Log last 3 items for streaming
-                logger.info(f"Session {session_id} - Streaming Context[{i}]: {item.get('role', 'unknown')} - {str(item.get('content', ''))[:100]}...")
-            
-            # Use Runner.run_streamed with session
-            logger.debug(f"Session {session_id} - Streaming to agent: {message[:200]}...")
-            result = Runner.run_streamed(
-                self.agent,
-                message,
-                session=session
-            )
-            
+            result = Runner.run_streamed(self.agent, message, session=session)
+
             full_response = ""
             temp_display = ""
             async for event in result.stream_events():
@@ -165,20 +149,11 @@ class MenuAgent:
                         # Clear temp display after tool completion
                         temp_display = ""
 
-            # Log new session context after streaming completes
-            new_items = await session.get_items()
-            logger.info(f"Session {session_id} - Streaming new context items: {len(new_items)} (added {len(new_items) - len(existing_items)} items)")
-            if len(new_items) > len(existing_items):
-                for item in new_items[len(existing_items):]:
-                    logger.info(f"Session {session_id} - {item}")
-            
             # Log usage information after streaming completes
             if result.context_wrapper.usage:
                 usage = result.context_wrapper.usage
                 logger.info(f"Session {session_id} - Streaming Usage: {usage.total_tokens} total tokens, {usage.requests} requests, {usage.input_tokens} input tokens, {usage.output_tokens} output tokens")
-            
-            logger.info(f"Streaming response completed for session {session_id}")
-            
+
         except Exception as e:
             logger.error(f"Error processing streaming message: {str(e)}")
             yield f"I encountered an error: {str(e)}"

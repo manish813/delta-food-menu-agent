@@ -36,9 +36,12 @@ class GradioInterface:
     def format_examples(self) -> List[str]:
         """Return example queries"""
         return [
-            "What's served in delta one class on DL30 from ATL on 2025-09-30?",
-            "Show me first class menu for DL30",
-            "Compare business and first class meals on DL30"
+            "What's served in delta one class on DL30 from ATL today?",
+            "whats served on my flight?",
+            "Hey Im flying from atlanta to london next wednesday what is the menu on delta one class?",
+            "Im flying from atlanta to tokyo today what japanese menu is served on this flight for delta one",
+            "Hey Im flying from atlanta to london 10th october why am i not able to preselect my menu ?",
+            "when will my baggage arrive for my flight departing on 30th september"
         ]
 
 
@@ -92,7 +95,7 @@ def create_gradio_app() -> gr.Blocks:
         gr.Markdown("""
         # 🛫 Delta Flight Menu Assistant
         
-        Ask about flight menus, compare cabin classes, or debug API issues. 
+        Ask about flight menus, compare cabin classes, or preselect windows. 
         Powered by Kimi AI and Delta's flight menu API.
         """)
         
@@ -148,13 +151,13 @@ def create_gradio_app() -> gr.Blocks:
         def example_click(example_text):
             return example_text
         
-        # Connect events with streaming
+        # Connect events with streaming - enable queue for streaming
         msg_input.submit(user, [msg_input, chatbot], [msg_input, chatbot], queue=False).then(
-            bot, [chatbot, debug_mode], chatbot
+            bot, [chatbot, debug_mode], chatbot, queue=True
         )
         
         submit_btn.click(user, [msg_input, chatbot], [msg_input, chatbot], queue=False).then(
-            bot, [chatbot, debug_mode], chatbot
+            bot, [chatbot, debug_mode], chatbot, queue=True
         )
         
         # Example button clicks
