@@ -17,17 +17,13 @@ class GradioInterface:
     
     def __init__(self):
         self.agent = MenuAgent()
-        self.conversation_history: List[Dict[str, str]] = []
     
-    async def chat_response_stream(self, message: str, history: List[List[str]], debug_mode: bool):
-        """Process chat message and yield real streaming response from agent"""
+    async def chat_response_stream(self, message: str, session_id: str = "gradio_session", debug_mode: bool = False):
+        """Process chat message with streaming using session-based management"""
         logger.info(f"Processing message: {message[:100]}...")
-        logger.info(f"printing history in chat response method : {history}")
         try:
-            messages = [{"role": msg["role"], "content": msg["content"]} for msg in history]
-            
-            # Stream the response directly from the agent
-            async for partial_response in self.agent.process_conversation_stream(messages, debug_mode):
+            # Use session-based streaming - no need to manage history manually
+            async for partial_response in self.agent.process_message_stream(message, session_id):
                 yield partial_response
                 
         except Exception as e:
@@ -143,8 +139,8 @@ def create_gradio_app() -> gr.Blocks:
             # Add empty assistant message to show streaming
             history.append({"role": "assistant", "content": ""})
             
-            # Stream the response
-            async for partial_response in interface.chat_response_stream(user_message, history[:-1], debug_mode):
+            # Stream the response using session-based management
+            async for partial_response in interface.chat_response_stream(user_message, "gradio_session", debug_mode):
                 history[-1]["content"] = partial_response
                 yield history
         
@@ -165,7 +161,11 @@ def create_gradio_app() -> gr.Blocks:
         for i, btn in enumerate(example_btns):
             btn.click(example_click, inputs=[btn], outputs=[msg_input])
         
-        clear_btn.click(lambda: None, None, chatbot, queue=False)
+        async def clear_conversation():
+            await interface.agent.clear_session("gradio_session")
+            return None
+        
+        clear_btn.click(clear_conversation, None, chatbot, queue=False)
         
         gr.Markdown("""
         ### Usage Tips:
@@ -182,8 +182,9 @@ def create_simple_chat():
     """Create a simple chat interface"""
     interface = GradioInterface()
     
-    def chat_fn(message, history, debug_mode):
-        return asyncio.run(interface.chat_response(message, history, debug_mode))
+    async def chat_fn(message, history, debug_mode):
+        result = await interface.agent.process_message(message, "simple_chat_session")
+        return result["response"]
     
     return gr.ChatInterface(
         fn=chat_fn,

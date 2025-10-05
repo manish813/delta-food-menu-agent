@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from typing import Dict, Any, List
 
-from agents import Agent, Runner, OpenAIChatCompletionsModel, ModelSettings
+from agents import Agent, Runner, OpenAIChatCompletionsModel, ModelSettings, SQLiteSession
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from openai.types.responses import ResponseTextDeltaEvent
@@ -54,7 +54,7 @@ class MenuAgent:
         )
         logger.debug("Kimi model instance created")
         
-        # Create the main agent with tracing enabled
+        # Create the main agent
         self.agent = Agent(
             name="Delta Menu Assistant",
             instructions=self._get_system_instructions(),
@@ -68,6 +68,135 @@ class MenuAgent:
         )
         logger.info("MenuAgent initialized successfully with 3 tools")
 
+    
+    def get_session(self, session_id: str) -> SQLiteSession:
+        """Get or create a SQLite session for conversation management"""
+        session = SQLiteSession(session_id, "menu_conversations.db")
+        return session
+    
+    async def process_message(self, message: str, session_id: str = "default") -> Dict[str, Any]:
+        """Process a message using session-based context management"""
+        try:
+            logger.info(f"Processing message with session {session_id}: {message[:100]}...")
+            
+            # Get or create session
+            session = self.get_session(session_id)
+            
+            # Log existing session context before processing
+            existing_items = await session.get_items()
+            logger.info(f"Session {session_id} - Existing context items: {len(existing_items)}")
+            for i, item in enumerate(existing_items[-5:]):  # Log last 5 items
+                logger.debug(f"Session {session_id} - Context[{i}]: {item.get('role', 'unknown')} - {str(item.get('content', ''))[:100]}...")
+            
+            # Run agent with session for automatic context management
+            logger.debug(f"Session {session_id} - Sending to agent: {message[:200]}...")
+            result = await Runner.run(
+                self.agent,
+                message,
+                session=session
+            )
+            
+            # Log new session context after processing
+            new_items = await session.get_items()
+            logger.info(f"Session {session_id} - New context items: {len(new_items)} (added {len(new_items) - len(existing_items)} items)")
+            if len(new_items) > len(existing_items):
+                for item in new_items[len(existing_items):]:
+                    logger.debug(f"Session {session_id} - Added: {item.get('role', 'unknown')} - {str(item.get('content', ''))[:100]}...")
+            
+            # Log usage information
+            if result.context_wrapper.usage:
+                usage = result.context_wrapper.usage
+                logger.info(f"Session {session_id} - Usage: {usage.total_tokens} total tokens, {usage.requests} requests, {usage.input_tokens} input tokens, {usage.output_tokens} output tokens")
+            
+            logger.info(f"Agent response generated successfully for session {session_id}")
+            
+            return {
+                "response": result.final_output,
+                "usage": {
+                    "total_tokens": result.context_wrapper.usage.total_tokens if result.context_wrapper.usage else 0,
+                    "requests": result.context_wrapper.usage.requests if result.context_wrapper.usage else 0
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing message: {str(e)}")
+            return {
+                "response": "I apologize, but I encountered an error processing your request. Please try again.",
+                "error": str(e)
+            }
+    
+    async def process_message_stream(self, message: str, session_id: str = "default"):
+        """Process a message with streaming using session-based context management"""
+        try:
+            logger.info(f"Processing streaming message with session {session_id}: {message[:100]}...")
+            
+            # Get or create session
+            session = self.get_session(session_id)
+            
+            # Log existing session context before processing
+            existing_items = await session.get_items()
+            logger.info(f"Session {session_id} - Streaming existing context items: {len(existing_items)} -------------")
+            for i, item in enumerate(existing_items):  # Log last 3 items for streaming
+                logger.info(f"Session {session_id} - Streaming Context[{i}]: {item.get('role', 'unknown')} - {str(item.get('content', ''))[:100]}...")
+            
+            # Use Runner.run_streamed with session
+            logger.debug(f"Session {session_id} - Streaming to agent: {message[:200]}...")
+            result = Runner.run_streamed(
+                self.agent,
+                message,
+                session=session
+            )
+            
+            full_response = ""
+            temp_display = ""
+            async for event in result.stream_events():
+                if event.type == "raw_response_event":
+                    if isinstance(event.data, ResponseTextDeltaEvent) and event.data.delta:
+                        full_response += event.data.delta
+                        yield full_response + temp_display
+                elif event.type == "run_item_stream_event":
+                    # Handle tool calls and outputs - show temporarily but don't add to final response
+                    if event.item.type == "tool_call_item":
+                        temp_display = "\n\n🔧 Calling tool...\n\n"
+                        yield full_response + temp_display
+                    elif event.item.type == "tool_call_output_item":
+                        temp_display = "\n✅ Tool Call completed\n\n"
+                        yield full_response + temp_display
+                        # Clear temp display after tool completion
+                        temp_display = ""
+
+            # Log new session context after streaming completes
+            new_items = await session.get_items()
+            logger.info(f"Session {session_id} - Streaming new context items: {len(new_items)} (added {len(new_items) - len(existing_items)} items)")
+            if len(new_items) > len(existing_items):
+                for item in new_items[len(existing_items):]:
+                    logger.info(f"Session {session_id} - {item}")
+            
+            # Log usage information after streaming completes
+            if result.context_wrapper.usage:
+                usage = result.context_wrapper.usage
+                logger.info(f"Session {session_id} - Streaming Usage: {usage.total_tokens} total tokens, {usage.requests} requests, {usage.input_tokens} input tokens, {usage.output_tokens} output tokens")
+            
+            logger.info(f"Streaming response completed for session {session_id}")
+            
+        except Exception as e:
+            logger.error(f"Error processing streaming message: {str(e)}")
+            yield f"I encountered an error: {str(e)}"
+    
+    async def clear_session(self, session_id: str = "default") -> None:
+        """Clear conversation history for a session"""
+        session = self.get_session(session_id)
+        
+        # Log items before clearing
+        items_before = await session.get_items()
+        logger.info(f"Session {session_id} - Clearing {len(items_before)} items from session")
+        
+        await session.clear_session()
+        
+        # Verify clearing worked
+        items_after = await session.get_items()
+        logger.info(f"Session {session_id} - Cleared successfully. Items remaining: {len(items_after)}")
+        logger.info(f"Cleared session: {session_id}")
     
     def _get_system_instructions(self) -> str:
         """System instructions for the agent"""
@@ -214,173 +343,10 @@ The preselect window will open on September 23rd, 2025 and will close on Septemb
 </example>
 """
 
-    async def process_message(self, message: str, debug: bool = False) -> Dict[str, Any]:
-        """
-        Process a user message and return a structured response
-        
-        Args:
-            message: User's message/question
-            debug: Whether to include debug information
-            
-        Returns:
-            Structured response with conversation context
-        """
-        logger.info(f"Processing message: '{message[:100]}{'...' if len(message) > 100 else ''}' (debug={debug})")
-        
-        try:
-            # Run the agent
-            logger.debug("Running agent with message")
-            result = await Runner.run(self.agent, message)
-            logger.debug(f"Agent completed - Final output length: {len(result.final_output or '') if result.final_output else 0}")
-            
-            # Format the response
-            response = {
-                "success": True,
-                "response": result.final_output or "No response generated",
-                "debug_info": None
-            }
-            
-            if debug:
-                response["debug_info"] = {
-                    "raw_response": str(result)
-                }
-                logger.debug("Debug info included in response")
-            
-            logger.info("Message processed successfully")
-            return response
-            
-        except Exception as e:
-            logger.error(f"Error processing message: {str(e)}", exc_info=True)
-            return {
-                "success": False,
-                "response": f"I encountered an error: {str(e)}",
-                "debug_info": {"error": str(e)} if debug else None
-            }
 
-    async def process_conversation_stream(self, messages: List[Dict[str, str]], debug: bool = False):
-        """
-        Process a conversation with streaming response using OpenAI Agents SDK
-        
-        Args:
-            messages: List of message dictionaries with 'role' and 'content'
-            debug: Whether to include debug information
-            
-        Yields:
-            Partial responses as they are generated
-        """
-        logger.info(f"Processing conversation with streaming for {len(messages)} messages (debug={debug})")
-        
-        try:
-            # Build conversation context
-            conversation = "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])
-            logger.debug(f"Conversation context built - Length: {len(conversation)}")
-            
-            # Use Runner.run_streamed for proper SDK streaming
-            result = Runner.run_streamed(self.agent, conversation)
-            
-            full_response = ""
-            temp_display = ""
-            async for event in result.stream_events():
-                # Handle different event types
-                if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
-                    # Stream raw LLM text deltas
-                    if event.data.delta:
-                        full_response += event.data.delta
-                        yield full_response + temp_display
-                elif event.type == "run_item_stream_event":
-                    # Handle tool calls and outputs - show temporarily but don't add to final response
-                    if event.item.type == "tool_call_item":
-                        temp_display = "\n\n🔧 Calling tool...\n\n"
-                        yield full_response + temp_display
-                    elif event.item.type == "tool_call_output_item":
-                        temp_display = "\n✅ Tool completed\n\n"
-                        yield full_response + temp_display
-                        # Clear temp display after tool completion
-                        temp_display = ""
-            
-            # Final yield with just the actual response content
-            yield full_response
-            logger.info("Streaming conversation processed successfully")
-            usage = result.context_wrapper.usage
-            logger.info(f"Usage: {usage.total_tokens} tokens")
-            logger.info(f"Requests: {usage.requests}")
-            logger.info(f"Input tokens: {usage.input_tokens}")
-            logger.info(f"Output tokens: {usage.output_tokens}")
-            logger.info(f"Total tokens: {usage.total_tokens}")
-            
-        except Exception as e:
-            logger.error(f"Error processing streaming conversation: {str(e)}", exc_info=True)
-            yield f"I encountered an error: {str(e)}"
-
-    async def process_conversation(self, messages: List[Dict[str, str]], debug: bool = False) -> Dict[str, Any]:
-        """
-        Process a conversation with multiple messages (non-streaming)
-        
-        Args:
-            messages: List of message dictionaries with 'role' and 'content'
-            debug: Whether to include debug information
-            
-        Returns:
-            Structured response with conversation context
-        """
-        logger.info(f"Processing conversation with {len(messages)} messages (debug={debug})")
-        
-        try:
-            # Build conversation context
-            conversation = "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])
-            logger.debug(f"Conversation context built - Length: {len(conversation)}")
-            
-            result = await Runner.run(self.agent, conversation)
-            logger.debug("Conversation processed by agent")
-            
-            response = {
-                "success": True,
-                "response": result.final_output or "No response generated",
-                "debug_info": None
-            }
-            
-            if debug:
-                response["debug_info"] = {
-                    "conversation_context": conversation
-                }
-                logger.debug("Debug info added to conversation response")
-            
-            logger.info("Conversation processed successfully")
-            return response
-            
-        except Exception as e:
-            logger.error(f"Error processing conversation: {str(e)}", exc_info=True)
-            return {
-                "success": False,
-                "response": f"I encountered an error: {str(e)}",
-                "debug_info": {"error": str(e)} if debug else None
-            }
     
     async def close(self):
         """Clean up resources"""
         logger.info("Closing MenuAgent resources")
         await self.client.close()
         logger.debug("MenuAgent resources closed")
-
-
-class SimpleMenuAgent:
-    """Simplified agent for quick queries without async"""
-    
-    def __init__(self):
-        self.client = DeltaMenuClient()
-        self.menu_tools = MenuTools(self.client)
-
-    async def get_menu_by_flight_sync(self, departure_date: str, flight_number: int, **kwargs) -> Dict[str, Any]:
-        """Synchronous wrapper for menu queries"""
-        result = await self.menu_tools.get_menu_by_flight(
-            departure_date=departure_date,
-            flight_number=flight_number,
-            **kwargs
-        )
-        return result
-    
-    def __enter__(self):
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        asyncio.create_task(self.client.close())
